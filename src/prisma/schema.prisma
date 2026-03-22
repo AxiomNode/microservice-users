@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserProfile {
+  id                       String             @id @default(cuid())
+  firebaseUid              String             @unique
+  firebaseProvider         String             @default("google.com")
+  email                    String?            @unique
+  emailVerified            Boolean            @default(false)
+  displayName              String?
+  photoUrl                 String?
+  lastLoginAt              DateTime?
+  gamesPlayed              Int                @default(0)
+  gamesWon                 Int                @default(0)
+  gamesLost                Int                @default(0)
+  gamesDraw                Int                @default(0)
+  totalScore               Int                @default(0)
+  bestScore                Int                @default(0)
+  totalDurationSeconds     Int                @default(0)
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+  gameEvents               UserGameEvent[]
+  gameTypeStats            UserGameTypeStat[]
+  categoryStats            UserCategoryStat[]
+  languageStats            UserLanguageStat[]
+
+  @@index([createdAt])
+}
+
+model UserGameEvent {
+  id              String      @id @default(cuid())
+  userId          String
+  gameType        String
+  categoryId      String?
+  categoryName    String?
+  language        String
+  outcome         GameOutcome
+  score           Int         @default(0)
+  durationSeconds Int         @default(0)
+  metadataJson    String?
+  playedAt        DateTime    @default(now())
+  user            UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, playedAt])
+  @@index([userId, gameType, playedAt])
+  @@index([userId, categoryId])
+  @@index([userId, language])
+}
+
+model UserGameTypeStat {
+  id          String      @id @default(cuid())
+  userId      String
+  gameType    String
+  played      Int         @default(0)
+  won         Int         @default(0)
+  lost        Int         @default(0)
+  draw        Int         @default(0)
+  totalScore  Int         @default(0)
+  bestScore   Int         @default(0)
+  user        UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameType])
+  @@index([userId, gameType])
+}
+
+model UserCategoryStat {
+  id           String      @id @default(cuid())
+  userId       String
+  gameType     String
+  categoryId   String
+  categoryName String?
+  played       Int         @default(0)
+  won          Int         @default(0)
+  lost         Int         @default(0)
+  draw         Int         @default(0)
+  user         UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameType, categoryId])
+  @@index([userId, categoryId])
+}
+
+model UserLanguageStat {
+  id       String      @id @default(cuid())
+  userId   String
+  gameType String
+  language String
+  played   Int         @default(0)
+  won      Int         @default(0)
+  lost     Int         @default(0)
+  draw     Int         @default(0)
+  user     UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameType, language])
+  @@index([userId, language])
+}
+
+enum GameOutcome {
+  won
+  lost
+  draw
+}

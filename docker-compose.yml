@@ -1,0 +1,35 @@
+services:
+  users-db:
+    image: postgres:16-alpine
+    container_name: microservice_users_db_dev
+    environment:
+      POSTGRES_DB: usersdb
+      POSTGRES_USER: users
+      POSTGRES_PASSWORD: users
+    ports:
+      - "7434:5432"
+    volumes:
+      - users_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U users -d usersdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  microservice-users:
+    container_name: microservice_users_dev
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://users:users@users-db:5432/usersdb?schema=public
+    depends_on:
+      users-db:
+        condition: service_healthy
+    env_file:
+      - ./src/.env
+    ports:
+      - "7102:7100"
+
+volumes:
+  users_db_data:

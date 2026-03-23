@@ -2,6 +2,18 @@
 
 Microservicio de identidad de usuario (Firebase) y analitica de juego para AxiomNode.
 
+## Integracion En Nueva Arquitectura
+
+Este servicio pasa a ser un servicio de dominio interno en el modelo Gateway + BFF.
+
+- Entrada publica esperada: `api-gateway`.
+- Consumidores directos recomendados: `bff-mobile`, `bff-backoffice`.
+- Exposicion directa a internet: solo temporal durante la migracion.
+
+Contrato interno inicial publicado en:
+
+- `contracts-and-schemas/schemas/openapi/internal-microservice-users.v1.yaml`
+
 ## Endpoints
 
 - `GET /health`

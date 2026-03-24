@@ -19,8 +19,8 @@ services:
   microservice-users:
     container_name: microservice_users_dev
     build:
-      context: ./src
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: microservice-users/src/Dockerfile
     environment:
       DATABASE_URL: postgresql://users:users@users-db:5432/usersdb?schema=public
     depends_on:

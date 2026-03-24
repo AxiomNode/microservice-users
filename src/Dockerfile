@@ -7,6 +7,8 @@ WORKDIR /workspace/microservice-users/src
 COPY microservice-users/src/package.json microservice-users/src/package-lock.json* ./
 COPY shared-sdk-client/typescript /workspace/shared-sdk-client/typescript
 COPY contracts-and-schemas /workspace/contracts-and-schemas
+RUN npm --prefix /workspace/shared-sdk-client/typescript install \
+	&& npm --prefix /workspace/shared-sdk-client/typescript run build
 RUN npm install
 
 FROM node:20-bookworm-slim AS build

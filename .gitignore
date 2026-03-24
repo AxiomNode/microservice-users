@@ -25,3 +25,13 @@ src/coverage/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Secrets policy (centralized in secrets repo)
+.env
+.env.*
+**/.env
+**/.env.*
+( ai-engine api-gateway bff-backoffice bff-mobile microservice-quizz microservice-users microservice-wordpass shared-sdk-client backoffice contracts-and-schemas docs observability-platform platform-infra )*/.env.example
+**/.env.secrets
+*.secrets.env
+runtime/**/*.env

@@ -23,6 +23,7 @@ const ConfigSchema = z
     FIREBASE_PRIVATE_KEY: OptionalEnvString,
     FIREBASE_CREDENTIALS_JSON: OptionalEnvString,
     FIREBASE_STRICT_AUTH: EnvBoolean.default(true),
+    SUPERADMIN_FIREBASE_UID: OptionalEnvString,
     PRIVATE_DOCS_ENABLED: EnvBoolean.default(true),
     PRIVATE_DOCS_PREFIX: z.string().default("/private/docs"),
     PRIVATE_DOCS_TOKEN: OptionalEnvString,

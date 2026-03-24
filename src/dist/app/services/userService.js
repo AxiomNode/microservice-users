@@ -1,16 +1,49 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, UserRole } from "@prisma/client";
 import { prisma } from "../db/client.js";
+export class AccessDeniedError extends Error {
+}
+export class RoleValidationError extends Error {
+}
+export class NotFoundError extends Error {
+}
 export class UserService {
+    config;
+    constructor(config) {
+        this.config = config;
+    }
+    resolveInitialRole(firebaseUid) {
+        if (this.config.SUPERADMIN_FIREBASE_UID && firebaseUid === this.config.SUPERADMIN_FIREBASE_UID) {
+            return UserRole.SuperAdmin;
+        }
+        return UserRole.Gamer;
+    }
+    normalizeManagedRole(role) {
+        if (role === "SuperAdmin" || role === "Admin" || role === "Viewer" || role === "Gamer") {
+            return role;
+        }
+        throw new RoleValidationError("Unsupported role");
+    }
+    async getRoleByFirebaseUid(firebaseUid) {
+        const user = await prisma.userProfile.findUnique({
+            where: { firebaseUid },
+            select: { role: true },
+        });
+        if (!user) {
+            throw new NotFoundError("User not found. Sync Firebase session first.");
+        }
+        return user.role;
+    }
     async upsertUserFromIdentity(identity) {
         const existing = await prisma.userProfile.findUnique({
             where: { firebaseUid: identity.firebaseUid },
-            select: { id: true }
+            select: { id: true, role: true }
         });
         if (!existing) {
             const created = await prisma.userProfile.create({
                 data: {
                     firebaseUid: identity.firebaseUid,
                     firebaseProvider: identity.provider,
+                    role: this.resolveInitialRole(identity.firebaseUid),
                     email: identity.email,
                     emailVerified: identity.emailVerified,
                     displayName: identity.displayName,
@@ -25,6 +58,9 @@ export class UserService {
             where: { id: existing.id },
             data: {
                 firebaseProvider: identity.provider,
+                role: this.config.SUPERADMIN_FIREBASE_UID && identity.firebaseUid === this.config.SUPERADMIN_FIREBASE_UID
+                    ? UserRole.SuperAdmin
+                    : existing.role,
                 email: identity.email,
                 emailVerified: identity.emailVerified,
                 displayName: identity.displayName,
@@ -37,10 +73,13 @@ export class UserService {
     async recordGameEvent(firebaseUid, input) {
         const user = await prisma.userProfile.findUnique({
             where: { firebaseUid },
-            select: { id: true }
+            select: { id: true, role: true }
         });
         if (!user) {
             throw new Error("User not found. Sync Firebase session first.");
+        }
+        if (user.role === UserRole.Viewer) {
+            throw new AccessDeniedError("Viewer cannot modify data.");
         }
         const outcome = input.outcome;
         const score = input.score ?? 0;
@@ -185,6 +224,7 @@ export class UserService {
             profile: {
                 id: user.id,
                 firebaseUid: user.firebaseUid,
+                role: user.role,
                 email: user.email,
                 displayName: user.displayName,
                 photoUrl: user.photoUrl,
@@ -257,5 +297,58 @@ export class UserService {
                 totalScore: true
             }
         });
+    }
+    async listRoleAssignments(requesterFirebaseUid) {
+        const requesterRole = await this.getRoleByFirebaseUid(requesterFirebaseUid);
+        if (requesterRole !== UserRole.SuperAdmin) {
+            throw new AccessDeniedError("Only SuperAdmin can manage role assignments.");
+        }
+        return prisma.userProfile.findMany({
+            orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+            select: {
+                id: true,
+                firebaseUid: true,
+                displayName: true,
+                email: true,
+                role: true,
+                createdAt: true,
+                updatedAt: true,
+            },
+        });
+    }
+    async updateUserRoleByFirebaseUid(requesterFirebaseUid, targetFirebaseUid, roleRaw) {
+        const requesterRole = await this.getRoleByFirebaseUid(requesterFirebaseUid);
+        if (requesterRole !== UserRole.SuperAdmin) {
+            throw new AccessDeniedError("Only SuperAdmin can modify user roles.");
+        }
+        const nextRole = this.normalizeManagedRole(roleRaw);
+        const target = await prisma.userProfile.findUnique({
+            where: { firebaseUid: targetFirebaseUid },
+            select: { id: true, firebaseUid: true, role: true, displayName: true, email: true },
+        });
+        if (!target) {
+            throw new NotFoundError("Target user not found.");
+        }
+        const superAdminUid = this.config.SUPERADMIN_FIREBASE_UID;
+        if (superAdminUid && target.firebaseUid === superAdminUid && nextRole !== UserRole.SuperAdmin) {
+            throw new AccessDeniedError("Configured SuperAdmin cannot be downgraded.");
+        }
+        if (nextRole === UserRole.SuperAdmin) {
+            if (!superAdminUid || target.firebaseUid !== superAdminUid) {
+                throw new AccessDeniedError("Only configured SuperAdmin UID can hold SuperAdmin role.");
+            }
+        }
+        const updated = await prisma.userProfile.update({
+            where: { id: target.id },
+            data: { role: nextRole },
+            select: {
+                firebaseUid: true,
+                displayName: true,
+                email: true,
+                role: true,
+                updatedAt: true,
+            },
+        });
+        return updated;
     }
 }

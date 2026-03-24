@@ -33,6 +33,7 @@ function defaultStats() {
         profile: {
             id: "usr-1",
             firebaseUid: identity.firebaseUid,
+            role: "Gamer",
             email: identity.email ?? null,
             displayName: identity.displayName ?? null,
             photoUrl: identity.photoUrl ?? null,
@@ -111,6 +112,9 @@ class FakeFirebaseAuthService {
 class FakeUserService {
     created = true;
     storedEvents = [];
+    async getRoleByFirebaseUid() {
+        return "Admin";
+    }
     async upsertUserFromIdentity() {
         const created = this.created;
         this.created = false;

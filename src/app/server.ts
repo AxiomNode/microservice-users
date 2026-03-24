@@ -33,7 +33,7 @@ async function buildServer() {
   await registerPrivateDocs(app, config);
 
   const firebaseAuthService = new FirebaseAuthService(config);
-  const userService = new UserService();
+  const userService = new UserService(config);
 
   app.addHook("onRequest", async (request) => {
     const requestAny = request as typeof request & {

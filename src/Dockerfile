@@ -29,6 +29,7 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 COPY --from=build /workspace/microservice-users/src/node_modules ./node_modules
 COPY --from=build /workspace/shared-sdk-client/typescript /workspace/shared-sdk-client/typescript
+COPY --from=build /workspace/shared-sdk-client/typescript /shared-sdk-client/typescript
 COPY --from=build /workspace/microservice-users/src/dist ./dist
 COPY --from=build /workspace/microservice-users/src/prisma ./prisma
 COPY --from=build /workspace/microservice-users/src/.env.example ./.env.example

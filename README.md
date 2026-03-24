@@ -30,6 +30,8 @@ Contrato interno inicial publicado en:
 
 El servicio expone OpenAPI privado para pruebas internas.
 
+La autenticacion de docs privadas se apoya en utilidades compartidas de `@axiomnode/shared-sdk-client/private-docs`.
+
 - Ruta UI: `/private/docs` (configurable con `PRIVATE_DOCS_PREFIX`)
 - Header de acceso: `X-Private-Docs-Token: <token>`
 - Header alternativo: `Authorization: Bearer <token>`

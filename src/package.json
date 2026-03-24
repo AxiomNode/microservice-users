@@ -17,6 +17,7 @@
     "db:migrate": "prisma migrate dev"
   },
   "dependencies": {
+    "@axiomnode/shared-sdk-client": "file:../../shared-sdk-client/typescript",
     "@fastify/cors": "^11.2.0",
     "@fastify/swagger": "^9.7.0",
     "@fastify/swagger-ui": "^5.2.5",

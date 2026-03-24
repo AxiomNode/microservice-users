@@ -1,5 +1,9 @@
 import swaggerUi from "@fastify/swagger-ui";
 import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import {
+  isAuthorizedForPrivateDocs as isAuthorizedForPrivateDocsShared,
+  resolvePrivateDocsToken as resolvePrivateDocsTokenShared
+} from "@axiomnode/shared-sdk-client/private-docs";
 
 import { AppConfig } from "../config.js";
 
@@ -7,18 +11,7 @@ export function isAuthorizedForPrivateDocs(
   request: FastifyRequest,
   expectedToken: string
 ): boolean {
-  const headerToken = request.headers["x-private-docs-token"];
-  const tokenFromHeader = Array.isArray(headerToken) ? headerToken[0] : headerToken;
-  if (typeof tokenFromHeader === "string" && tokenFromHeader === expectedToken) {
-    return true;
-  }
-
-  const authHeader = request.headers.authorization;
-  if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
-    return authHeader.slice("Bearer ".length).trim() === expectedToken;
-  }
-
-  return false;
+  return isAuthorizedForPrivateDocsShared(request.headers, expectedToken);
 }
 
 export async function registerPrivateDocs(app: FastifyInstance, config: AppConfig): Promise<void> {
@@ -32,7 +25,9 @@ export async function registerPrivateDocs(app: FastifyInstance, config: AppConfi
     transformSpecificationClone: true,
     uiHooks: {
       onRequest: async (request: FastifyRequest, reply: FastifyReply) => {
-        const expectedToken = config.PRIVATE_DOCS_TOKEN;
+        const expectedToken = resolvePrivateDocsTokenShared(config, {
+          fallbackToAiEngineKey: false
+        });
         if (!expectedToken || !isAuthorizedForPrivateDocs(request, expectedToken)) {
           return reply.code(401).send({ message: "Unauthorized private docs access" });
         }

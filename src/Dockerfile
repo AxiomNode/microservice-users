@@ -18,6 +18,7 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 COPY --from=deps /workspace/microservice-users/src/node_modules ./node_modules
 COPY --from=deps /workspace/shared-sdk-client/typescript /workspace/shared-sdk-client/typescript
+COPY --from=deps /workspace/shared-sdk-client/typescript /shared-sdk-client/typescript
 COPY microservice-users/src .
 RUN npm run db:generate && npm run build
 

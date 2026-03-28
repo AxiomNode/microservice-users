@@ -2,6 +2,10 @@
 
 Microservicio de identidad de usuario (Firebase) y analitica de juego para AxiomNode.
 
+## Responsabilidad principal
+
+- Gestionar identidad, perfil, roles administrativos y eventos de gameplay de usuario.
+
 ## Integracion En Nueva Arquitectura
 
 Este servicio pasa a ser un servicio de dominio interno en el modelo Gateway + BFF.

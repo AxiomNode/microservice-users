@@ -25,6 +25,7 @@ COPY microservice-users/src/.env.example ./.env.example
 COPY microservice-users/src/prisma ./prisma
 COPY microservice-users/src/app ./app
 RUN npm run db:generate && npm run build
+RUN npm prune --production
 
 FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
@@ -39,4 +40,4 @@ COPY --from=build /workspace/microservice-users/src/dist ./dist
 COPY --from=build /workspace/microservice-users/src/prisma ./prisma
 COPY --from=build /workspace/microservice-users/src/.env.example ./.env.example
 EXPOSE 7100
-CMD ["sh", "-c", "npx prisma db push && node dist/app/server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/app/server.js"]

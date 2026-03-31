@@ -3,6 +3,12 @@ import { DecodedIdToken, getAuth } from "firebase-admin/auth";
 
 import { AppConfig } from "../config.js";
 
+/**
+ * @module services/firebaseAuthService
+ * Firebase Authentication integration — token verification and identity extraction.
+ */
+
+/** Normalized identity payload extracted from a Firebase ID token. */
 export interface FirebaseIdentity {
   firebaseUid: string;
   email?: string;
@@ -12,6 +18,7 @@ export interface FirebaseIdentity {
   provider: string;
 }
 
+/** Handles Firebase ID-token verification and dev-mode bypass. */
 export class FirebaseAuthService {
   private firebaseApp: App | null = null;
 

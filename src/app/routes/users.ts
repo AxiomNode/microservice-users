@@ -1,6 +1,7 @@
 import { UserRole } from "@prisma/client";
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { LeaderboardQuerySchema as BaseLeaderboardQuerySchema } from "@axiomnode/shared-sdk-client/contracts";
 
 import { FirebaseAuthService, FirebaseIdentity } from "../services/firebaseAuthService.js";
 import { ServiceMetrics } from "../services/serviceMetrics.js";
@@ -10,6 +11,11 @@ import {
   RoleValidationError,
   UserService,
 } from "../services/userService.js";
+
+/**
+ * @module routes/users
+ * User-facing routes: session sync, profile, stats, game events, leaderboard, and admin role management.
+ */
 
 interface AuthenticatedRequest extends FastifyRequest {
   userIdentity?: FirebaseIdentity;
@@ -35,7 +41,7 @@ const StatsQuerySchema = z.object({
   recentLimit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-const LeaderboardQuerySchema = z.object({
+const LeaderboardQuerySchema = BaseLeaderboardQuerySchema.extend({
   metric: z.enum(["won", "score", "played"]).default("won"),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -48,6 +54,7 @@ const RoleParamsSchema = z.object({
   firebaseUid: z.string().min(1),
 });
 
+/** Registers all user-domain routes on the Fastify instance. */
 export async function usersRoutes(
   app: FastifyInstance,
   firebaseAuth: FirebaseAuthService,

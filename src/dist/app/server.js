@@ -2,6 +2,7 @@ import "dotenv/config";
 import cors from "@fastify/cors";
 import swagger from "@fastify/swagger";
 import Fastify from "fastify";
+import { randomUUID } from "node:crypto";
 import { loadConfig } from "./config.js";
 import { prisma } from "./db/client.js";
 import { registerPrivateDocs } from "./plugins/privateDocs.js";
@@ -32,19 +33,36 @@ async function buildServer() {
         requestAny._startedAt = Date.now();
         const contentLength = Number(request.headers["content-length"] ?? 0);
         requestAny._requestBytes = Number.isFinite(contentLength) ? contentLength : 0;
+        const inboundCorrelationId = String(request.headers["x-correlation-id"] ?? "").trim();
+        requestAny._correlationId = inboundCorrelationId || randomUUID();
+        request.headers["x-correlation-id"] = requestAny._correlationId;
     });
     app.addHook("onResponse", async (request, reply) => {
+        if (request.url === "/health") {
+            return;
+        }
         const requestAny = request;
         const responseContentLength = Number(reply.getHeader("content-length") ?? 0);
         const responseBytes = Number.isFinite(responseContentLength) ? responseContentLength : 0;
-        const route = (request.routeOptions.url ?? request.url.split("?")[0]);
+        const route = (request.routeOptions.url ?? "UNMATCHED");
+        const correlationId = requestAny._correlationId ?? randomUUID();
+        const durationMs = Math.max(0, Date.now() - (requestAny._startedAt ?? Date.now()));
+        reply.header("x-correlation-id", correlationId);
         metrics.recordIncomingRequest({
             method: request.method,
             route,
             statusCode: reply.statusCode,
-            durationMs: Math.max(0, Date.now() - (requestAny._startedAt ?? Date.now())),
+            durationMs,
             requestBytes: requestAny._requestBytes ?? 0,
             responseBytes
+        });
+        app.log.info({
+            correlation_id: correlationId,
+            service: config.SERVICE_NAME,
+            route,
+            status_code: reply.statusCode,
+            duration_ms: durationMs,
+            error_code: reply.statusCode >= 500 ? "upstream_or_internal_error" : undefined
         });
     });
     await healthRoutes(app);

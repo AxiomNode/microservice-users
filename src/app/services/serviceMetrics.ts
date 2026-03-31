@@ -1,5 +1,10 @@
 import { AppConfig } from "../config.js";
 
+/**
+ * @module services/serviceMetrics
+ * In-memory metrics collector for traffic, auth, user, and gameplay counters.
+ */
+
 interface LogEvent {
   ts: string;
   level: "info" | "warn" | "error";
@@ -7,6 +12,7 @@ interface LogEvent {
   context?: Record<string, unknown>;
 }
 
+/** Collects and exposes service metrics, logs, and Prometheus-formatted output. */
 export class ServiceMetrics {
   private readonly startedAt = Date.now();
   private readonly routeCounters = new Map<string, number>();

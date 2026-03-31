@@ -1,5 +1,6 @@
 import { UserRole } from "@prisma/client";
 import { z } from "zod";
+import { LeaderboardQuerySchema as BaseLeaderboardQuerySchema } from "@axiomnode/shared-sdk-client/contracts";
 import { AccessDeniedError, NotFoundError, RoleValidationError, } from "../services/userService.js";
 const SyncSessionSchema = z.object({
     idToken: z.string().min(10).optional(),
@@ -17,7 +18,7 @@ const GameEventSchema = z.object({
 const StatsQuerySchema = z.object({
     recentLimit: z.coerce.number().int().min(1).max(100).default(20),
 });
-const LeaderboardQuerySchema = z.object({
+const LeaderboardQuerySchema = BaseLeaderboardQuerySchema.extend({
     metric: z.enum(["won", "score", "played"]).default("won"),
     limit: z.coerce.number().int().min(1).max(100).default(20),
 });

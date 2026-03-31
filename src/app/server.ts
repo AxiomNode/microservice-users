@@ -1,5 +1,10 @@
 import "dotenv/config";
 
+/**
+ * @module server
+ * Fastify server bootstrap and lifecycle for microservice-users.
+ */
+
 import cors from "@fastify/cors";
 import swagger from "@fastify/swagger";
 import Fastify from "fastify";
@@ -15,6 +20,7 @@ import { FirebaseAuthService } from "./services/firebaseAuthService.js";
 import { ServiceMetrics } from "./services/serviceMetrics.js";
 import { UserService } from "./services/userService.js";
 
+/** Creates and configures the Fastify application with all plugins and routes. */
 async function buildServer() {
   const config = loadConfig();
   const app = Fastify({ logger: true });
@@ -53,6 +59,10 @@ async function buildServer() {
   });
 
   app.addHook("onResponse", async (request, reply) => {
+    if (request.url === "/health") {
+      return;
+    }
+
     const requestAny = request as typeof request & {
       _startedAt?: number;
       _requestBytes?: number;
@@ -61,7 +71,7 @@ async function buildServer() {
 
     const responseContentLength = Number(reply.getHeader("content-length") ?? 0);
     const responseBytes = Number.isFinite(responseContentLength) ? responseContentLength : 0;
-    const route = (request.routeOptions.url ?? request.url.split("?")[0]) as string;
+    const route = (request.routeOptions.url ?? "UNMATCHED") as string;
     const correlationId = requestAny._correlationId ?? randomUUID();
     const durationMs = Math.max(0, Date.now() - (requestAny._startedAt ?? Date.now()));
 
@@ -97,6 +107,7 @@ async function buildServer() {
   return { app, config };
 }
 
+/** Entry point — builds the server and starts listening. */
 async function main() {
   const { app, config } = await buildServer();
 

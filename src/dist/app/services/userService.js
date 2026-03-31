@@ -212,6 +212,17 @@ export class UserService {
                 categoryStats: { orderBy: { played: "desc" } },
                 languageStats: { orderBy: { played: "desc" } },
                 gameEvents: {
+                    select: {
+                        id: true,
+                        gameType: true,
+                        categoryId: true,
+                        categoryName: true,
+                        language: true,
+                        outcome: true,
+                        score: true,
+                        durationSeconds: true,
+                        playedAt: true,
+                    },
                     orderBy: { playedAt: "desc" },
                     take: Math.max(1, recentLimit)
                 }

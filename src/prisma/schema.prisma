@@ -68,7 +68,6 @@ model UserGameTypeStat {
   user        UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, gameType])
-  @@index([userId, gameType])
 }
 
 model UserCategoryStat {

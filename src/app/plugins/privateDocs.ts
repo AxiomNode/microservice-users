@@ -7,6 +7,12 @@ import {
 
 import { AppConfig } from "../config.js";
 
+/**
+ * @module plugins/privateDocs
+ * Token-gated Swagger UI plugin for private API documentation.
+ */
+
+/** Checks whether the incoming request carries a valid private-docs token. */
 export function isAuthorizedForPrivateDocs(
   request: FastifyRequest,
   expectedToken: string
@@ -14,6 +20,7 @@ export function isAuthorizedForPrivateDocs(
   return isAuthorizedForPrivateDocsShared(request.headers, expectedToken);
 }
 
+/** Registers the Swagger UI under the configured private-docs prefix with token auth. */
 export async function registerPrivateDocs(app: FastifyInstance, config: AppConfig): Promise<void> {
   if (!config.PRIVATE_DOCS_ENABLED) {
     return;

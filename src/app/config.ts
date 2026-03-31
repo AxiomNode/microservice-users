@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+/**
+ * @module config
+ * Environment configuration schema and loader for microservice-users.
+ */
+
 const OptionalEnvString = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
   z.string().min(1).optional()
@@ -21,7 +26,7 @@ const EnvBoolean = z.preprocess((value) => {
 const ConfigSchema = z
   .object({
     SERVICE_NAME: z.string().default("microservice-users"),
-    SERVICE_PORT: z.coerce.number().int().positive().default(7100),
+    SERVICE_PORT: z.coerce.number().int().positive().default(7102),
     NODE_ENV: z.string().default("development"),
     METRICS_LOG_BUFFER_SIZE: z.coerce.number().int().min(50).max(5000).default(500),
     FIREBASE_PROJECT_ID: OptionalEnvString,
@@ -89,8 +94,10 @@ const ConfigSchema = z
     }
   });
 
+/** Typed configuration object inferred from the environment schema. */
 export type AppConfig = z.infer<typeof ConfigSchema>;
 
+/** Parses and validates environment variables into an AppConfig. Throws on invalid config. */
 export function loadConfig(): AppConfig {
   const parsed = ConfigSchema.safeParse(process.env);
   if (!parsed.success) {

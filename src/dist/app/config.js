@@ -15,7 +15,7 @@ const EnvBoolean = z.preprocess((value) => {
 const ConfigSchema = z
     .object({
     SERVICE_NAME: z.string().default("microservice-users"),
-    SERVICE_PORT: z.coerce.number().int().positive().default(7100),
+    SERVICE_PORT: z.coerce.number().int().positive().default(7102),
     NODE_ENV: z.string().default("development"),
     METRICS_LOG_BUFFER_SIZE: z.coerce.number().int().min(50).max(5000).default(500),
     FIREBASE_PROJECT_ID: OptionalEnvString,

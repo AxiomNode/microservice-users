@@ -4,10 +4,21 @@ import { AppConfig } from "../config.js";
 import { prisma } from "../db/client.js";
 import { FirebaseIdentity } from "./firebaseAuthService.js";
 
+/**
+ * @module services/userService
+ * Core business logic for user profiles, game events, stats, leaderboards, and role management.
+ */
+
+/** Thrown when the caller lacks permission for the requested action. */
 export class AccessDeniedError extends Error {}
+
+/** Thrown when an invalid role string is provided. */
 export class RoleValidationError extends Error {}
+
+/** Thrown when the target user does not exist. */
 export class NotFoundError extends Error {}
 
+/** Input payload for recording a single game event. */
 export interface RecordGameEventInput {
   gameType: string;
   categoryId?: string;
@@ -19,6 +30,7 @@ export interface RecordGameEventInput {
   metadata?: Record<string, unknown>;
 }
 
+/** Complete stats snapshot returned by getMyStats. */
 export interface UserStatsSnapshot {
   profile: {
     id: string;
@@ -77,6 +89,7 @@ export interface UserStatsSnapshot {
   }>;
 }
 
+/** Manages user profiles, game event recording, stats retrieval, and role assignments. */
 export class UserService {
   constructor(private readonly config: AppConfig) {}
 
@@ -303,6 +316,17 @@ export class UserService {
         categoryStats: { orderBy: { played: "desc" } },
         languageStats: { orderBy: { played: "desc" } },
         gameEvents: {
+          select: {
+            id: true,
+            gameType: true,
+            categoryId: true,
+            categoryName: true,
+            language: true,
+            outcome: true,
+            score: true,
+            durationSeconds: true,
+            playedAt: true,
+          },
           orderBy: { playedAt: "desc" },
           take: Math.max(1, recentLimit)
         }

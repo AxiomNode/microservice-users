@@ -2,6 +2,7 @@ services:
   users-db:
     image: postgres:16-alpine
     container_name: microservice_users_db_dev
+    restart: unless-stopped
     environment:
       POSTGRES_DB: usersdb
       POSTGRES_USER: users
@@ -15,14 +16,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: "1.0"
 
   microservice-users:
     container_name: microservice_users_dev
+    restart: unless-stopped
     build:
       context: ..
       dockerfile: microservice-users/src/Dockerfile
     environment:
-      DATABASE_URL: postgresql://users:users@users-db:5432/usersdb?schema=public
+      DATABASE_URL: postgresql://users:users@users-db:5432/usersdb?schema=public&connection_limit=10&pool_timeout=20
     depends_on:
       users-db:
         condition: service_healthy
@@ -31,6 +36,15 @@ services:
       - ./src/.env.secrets
     ports:
       - "7102:7100"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:7100/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: "1.0"
 
 volumes:
   users_db_data:

@@ -1,20 +1,20 @@
 # microservice-users
 
-Microservicio de identidad de usuario (Firebase) y analitica de juego para AxiomNode.
+User identity (Firebase) and game analytics microservice for AxiomNode.
 
-## Responsabilidad principal
+## Main responsibility
 
-- Gestionar identidad, perfil, roles administrativos y eventos de gameplay de usuario.
+- Manage user identity, profile, admin roles, and gameplay events.
 
-## Integracion En Nueva Arquitectura
+## Integration in new architecture
 
-Este servicio pasa a ser un servicio de dominio interno en el modelo Gateway + BFF.
+This service becomes an internal domain service in the Gateway + BFF model.
 
-- Entrada publica esperada: `api-gateway`.
-- Consumidores directos recomendados: `bff-mobile`, `bff-backoffice`.
-- Exposicion directa a internet: solo temporal durante la migracion.
+- Expected public entry point: `api-gateway`.
+- Recommended direct consumers: `bff-mobile`, `bff-backoffice`.
+- Direct internet exposure: only temporary during migration.
 
-Contrato interno inicial publicado en:
+Initial internal contract published at:
 
 - `contracts-and-schemas/schemas/openapi/internal-microservice-users.v1.yaml`
 
@@ -32,26 +32,26 @@ Contrato interno inicial publicado en:
 
 ## Private API Docs (Swagger-like)
 
-El servicio expone OpenAPI privado para pruebas internas.
+The service exposes private OpenAPI docs for internal testing.
 
-La autenticacion de docs privadas se apoya en utilidades compartidas de `@axiomnode/shared-sdk-client/private-docs`.
+Private docs authentication relies on shared utilities from `@axiomnode/shared-sdk-client/private-docs`.
 
-- Ruta UI: `/private/docs` (configurable con `PRIVATE_DOCS_PREFIX`)
-- Header de acceso: `X-Private-Docs-Token: <token>`
-- Header alternativo: `Authorization: Bearer <token>`
+- UI route: `/private/docs` (configurable with `PRIVATE_DOCS_PREFIX`)
+- Access header: `X-Private-Docs-Token: <token>`
+- Alternative header: `Authorization: Bearer <token>`
 
-Variables:
+Key env vars:
 
 - `PRIVATE_DOCS_ENABLED=true|false`
 - `PRIVATE_DOCS_PREFIX=/private/docs`
 - `PRIVATE_DOCS_TOKEN=users_private_docs_token`
 
-### Verificacion rapida (private docs)
+### Quick verification (private docs)
 
-Con el servicio corriendo en localhost:
+With service running on localhost:
 
 ```bash
-# esperado 401 (sin token)
+# expected 401 (no token)
 python - <<'PY'
 import urllib.request, urllib.error
 try:
@@ -60,7 +60,7 @@ except urllib.error.HTTPError as e:
 	print(e.code)
 PY
 
-# esperado 200 (con token)
+# expected 200 (with token)
 python - <<'PY'
 import urllib.request
 req = urllib.request.Request(
@@ -72,46 +72,46 @@ with urllib.request.urlopen(req) as r:
 PY
 ```
 
-### CI por repositorio
+### CI in repository scope
 
-Este repositorio tiene su workflow propio de GitHub Actions:
+This repository has its own GitHub Actions workflow:
 
 - `.github/workflows/ci.yml`
 
-El workflow ejecuta build, tests, lint, auditoria de dependencias productivas y smoke docker de docs privadas.
+The workflow runs build, tests, lint, production dependency audit, and docker smoke checks for private docs.
 
-## Contrato de autenticacion
+## Authentication contract
 
-- Header principal: `Authorization: Bearer <firebase_id_token>`
-- Header de desarrollo (solo cuando `FIREBASE_STRICT_AUTH=false`): `X-Dev-Firebase-Uid: <uid>`
+- Main header: `Authorization: Bearer <firebase_id_token>`
+- Development header (only when `FIREBASE_STRICT_AUTH=false`): `X-Dev-Firebase-Uid: <uid>`
 
-En modo estricto (`FIREBASE_STRICT_AUTH=true`), el servicio valida el token con Firebase Admin SDK y
-falla en arranque si faltan credenciales de Firebase.
+In strict mode (`FIREBASE_STRICT_AUTH=true`), the service validates the token with Firebase Admin SDK and
+fails on startup if Firebase credentials are missing.
 
-## Checklist de produccion (Firebase estricto)
+## Production checklist (strict Firebase)
 
-1. Definir `FIREBASE_STRICT_AUTH=true`.
-2. Configurar una de estas dos opciones de credenciales:
-3. Opcion A: `FIREBASE_CREDENTIALS_JSON` con `project_id`, `client_email`, `private_key`.
-4. Opcion B: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`.
-5. No usar `X-Dev-Firebase-Uid` en entornos productivos.
-6. Rotar credenciales y mantenerlas fuera del repositorio.
+1. Set `FIREBASE_STRICT_AUTH=true`.
+2. Configure one of these two credential options:
+3. Option A: `FIREBASE_CREDENTIALS_JSON` with `project_id`, `client_email`, `private_key`.
+4. Option B: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`.
+5. Do not use `X-Dev-Firebase-Uid` in production environments.
+6. Rotate credentials and keep them outside the repository.
 
-## Contrato backoffice
+## Backoffice contract
 
 ### Monitor JSON
 
-`GET /monitor/stats` devuelve:
+`GET /monitor/stats` returns:
 
-- `traffic`: contadores de peticiones/bytes.
-- `auth`: intentos de autenticacion ok/fail.
-- `users`: sincronizaciones creadas/actualizadas.
-- `gameplay`: eventos, outcomes, agregados por tipo e idioma.
-- `requestsByRoute`: cardinalidad por metodo/ruta/status.
+- `traffic`: request/bytes counters.
+- `auth`: authentication attempts ok/fail.
+- `users`: created/updated synchronizations.
+- `gameplay`: events, outcomes, aggregated by type and language.
+- `requestsByRoute`: cardinality by method/route/status.
 
 ### Prometheus
 
-`GET /metrics` expone series como:
+`GET /metrics` exposes series such as:
 
 - `microservice_requests_received_total`
 - `microservice_auth_attempts_total`

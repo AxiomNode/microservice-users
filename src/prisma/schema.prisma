@@ -7,11 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Core user profile linked to Firebase authentication
 model UserProfile {
+  /// Unique internal identifier
   id                       String             @id @default(cuid())
+  /// Firebase authentication UID
   firebaseUid              String             @unique
   firebaseProvider         String             @default("google.com")
+  /// User role for access control
   role                     UserRole           @default(Gamer)
+  /// User email, unique when provided
   email                    String?            @unique
   emailVerified            Boolean            @default(false)
   displayName              String?
@@ -35,18 +40,23 @@ model UserProfile {
   @@index([role])
 }
 
+/// Individual game play event recorded per user
 model UserGameEvent {
+  /// Unique identifier for this event
   id              String      @id @default(cuid())
+  /// Foreign key to the owning UserProfile
   userId          String
   gameType        String
   categoryId      String?
   categoryName    String?
   language        String
+  /// Result of the game (won, lost, draw)
   outcome         GameOutcome
   score           Int         @default(0)
   durationSeconds Int         @default(0)
   metadataJson    String?
   playedAt        DateTime    @default(now())
+  /// Parent user profile
   user            UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, playedAt])
@@ -55,8 +65,11 @@ model UserGameEvent {
   @@index([userId, language])
 }
 
+/// Aggregated stats per user and game type
 model UserGameTypeStat {
+  /// Unique identifier
   id          String      @id @default(cuid())
+  /// Foreign key to UserProfile
   userId      String
   gameType    String
   played      Int         @default(0)
@@ -67,13 +80,18 @@ model UserGameTypeStat {
   bestScore   Int         @default(0)
   user        UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /// One stat row per user + game type combination
   @@unique([userId, gameType])
 }
 
+/// Aggregated stats per user, game type, and category
 model UserCategoryStat {
+  /// Unique identifier
   id           String      @id @default(cuid())
+  /// Foreign key to UserProfile
   userId       String
   gameType     String
+  /// Category identifier for the game
   categoryId   String
   categoryName String?
   played       Int         @default(0)
@@ -82,12 +100,16 @@ model UserCategoryStat {
   draw         Int         @default(0)
   user         UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /// One stat row per user + game type + category combination
   @@unique([userId, gameType, categoryId])
   @@index([userId, categoryId])
 }
 
+/// Aggregated stats per user, game type, and language
 model UserLanguageStat {
+  /// Unique identifier
   id       String      @id @default(cuid())
+  /// Foreign key to UserProfile
   userId   String
   gameType String
   language String
@@ -97,16 +119,19 @@ model UserLanguageStat {
   draw     Int         @default(0)
   user     UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /// One stat row per user + game type + language combination
   @@unique([userId, gameType, language])
   @@index([userId, language])
 }
 
+/// Possible outcomes of a game session
 enum GameOutcome {
   won
   lost
   draw
 }
 
+/// Access control roles assigned to users
 enum UserRole {
   SuperAdmin
   Admin

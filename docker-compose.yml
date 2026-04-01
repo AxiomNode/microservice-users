@@ -1,7 +1,7 @@
 services:
   users-db:
     image: postgres:16-alpine
-    container_name: microservice_users_db_dev
+    container_name: "microservice_users_db_${DISTRIBUTION:-dev}_${RELEASE_VERSION:-v1}"
     restart: unless-stopped
     environment:
       POSTGRES_DB: usersdb
@@ -21,7 +21,8 @@ services:
     cpus: "1.0"
 
   microservice-users:
-    container_name: microservice_users_dev
+    image: "microservice_users_api_${DISTRIBUTION:-dev}_${RELEASE_VERSION:-v1}"
+    container_name: "microservice_users_api_${DISTRIBUTION:-dev}_${RELEASE_VERSION:-v1}"
     restart: unless-stopped
     build:
       context: ..
@@ -48,3 +49,4 @@ services:
 
 volumes:
   users_db_data:
+    name: "microservice_users_db_${DISTRIBUTION:-dev}_${RELEASE_VERSION:-v1}_data"

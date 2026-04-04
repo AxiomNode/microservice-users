@@ -125,3 +125,5 @@ fails on startup if Firebase credentials are missing.
 - `microservice_games_draw_total`
 - `microservice_game_events_by_type_total{game_type=...}`
 - `microservice_game_events_by_language_total{language=...}`
+
+CI automation probe: 2026-04-04T16:23:48Z

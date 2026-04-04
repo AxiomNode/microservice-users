@@ -2,5 +2,5 @@
 
 ## Network Policy
 
-- Exposicion publica: no.
-- Acceso permitido desde BFFs y componentes internos autorizados.
+- Public exposure: no.
+- Access allowed from BFF services and authorized internal components.

@@ -2,6 +2,6 @@
 
 ## Role In Target Architecture
 
-- Servicio de dominio interno para identidad y analitica.
-- Consumido por `bff-mobile` y `bff-backoffice`.
-- No debe exponerse como API publica directa.
+- Internal domain service for identity and gameplay analytics.
+- Consumed by `bff-mobile` and `bff-backoffice`.
+- Must not be exposed as a direct public API.

@@ -1,24 +1,14 @@
 # microservice-users
 
-User identity (Firebase) and game analytics microservice for AxiomNode.
+User identity and gameplay analytics service for AxiomNode.
 
-## Main responsibility
+## Responsibilities
 
-- Manage user identity, profile, admin roles, and gameplay events.
+- Manage user profile and identity-linked session flows.
+- Track gameplay events and aggregate operational metrics.
+- Expose leaderboard and monitoring endpoints for BFF consumers.
 
-## Integration in new architecture
-
-This service becomes an internal domain service in the Gateway + BFF model.
-
-- Expected public entry point: `api-gateway`.
-- Recommended direct consumers: `bff-mobile`, `bff-backoffice`.
-- Direct internet exposure: only temporary during migration.
-
-Initial internal contract published at:
-
-- `contracts-and-schemas/schemas/openapi/internal-microservice-users.v1.yaml`
-
-## Endpoints
+## Main endpoints
 
 - `GET /health`
 - `GET /monitor/stats`
@@ -30,102 +20,30 @@ Initial internal contract published at:
 - `POST /users/me/games/events`
 - `GET /users/leaderboard?metric=won|score|played&limit=20`
 
-## Private API Docs (Swagger-like)
+## Private docs
 
-The service exposes private OpenAPI docs for internal testing.
+- Route: `/private/docs`
+- JSON: `/private/docs/json`
+- Auth headers: `X-Private-Docs-Token` or `Authorization: Bearer <token>`
 
-Private docs authentication relies on shared utilities from `@axiomnode/shared-sdk-client/private-docs`.
+## Authentication model
 
-- UI route: `/private/docs` (configurable with `PRIVATE_DOCS_PREFIX`)
-- Access header: `X-Private-Docs-Token: <token>`
-- Alternative header: `Authorization: Bearer <token>`
+- Standard mode: `Authorization: Bearer <firebase_id_token>`
+- Dev fallback (only with `FIREBASE_STRICT_AUTH=false`): `X-Dev-Firebase-Uid: <uid>`
 
-Key env vars:
+In strict mode, Firebase credentials are mandatory at startup.
 
-- `PRIVATE_DOCS_ENABLED=true|false`
-- `PRIVATE_DOCS_PREFIX=/private/docs`
-- `PRIVATE_DOCS_TOKEN=users_private_docs_token`
-
-### Quick verification (private docs)
-
-With service running on localhost:
-
-```bash
-# expected 401 (no token)
-python - <<'PY'
-import urllib.request, urllib.error
-try:
-	urllib.request.urlopen('http://localhost:7102/private/docs/json')
-except urllib.error.HTTPError as e:
-	print(e.code)
-PY
-
-# expected 200 (with token)
-python - <<'PY'
-import urllib.request
-req = urllib.request.Request(
-	'http://localhost:7102/private/docs/json',
-	headers={'X-Private-Docs-Token': 'users_private_docs_token'}
-)
-with urllib.request.urlopen(req) as r:
-	print(r.getcode())
-PY
-```
-
-### CI in repository scope
-
-This repository has its own GitHub Actions workflow:
+## CI/CD workflow behavior
 
 - `.github/workflows/ci.yml`
+	- Trigger: push (`main`, `develop`), pull request, manual dispatch.
+	- Job `build-test-lint-audit`: build, test, lint, npm production audit.
+	- Job `docker-smoke-private-docs`: validates container startup + private docs auth behavior.
+	- Job `trigger-platform-infra-build`:
+		- Runs on push to `main`.
+		- Dispatches `platform-infra/.github/workflows/build-push.yaml` with `service=microservice-users`.
+		- Requires `PLATFORM_INFRA_DISPATCH_TOKEN` in this repo.
 
-The workflow runs build, tests, lint, production dependency audit, and docker smoke checks for private docs.
+## Deployment automation chain
 
-## Authentication contract
-
-- Main header: `Authorization: Bearer <firebase_id_token>`
-- Development header (only when `FIREBASE_STRICT_AUTH=false`): `X-Dev-Firebase-Uid: <uid>`
-
-In strict mode (`FIREBASE_STRICT_AUTH=true`), the service validates the token with Firebase Admin SDK and
-fails on startup if Firebase credentials are missing.
-
-## Production checklist (strict Firebase)
-
-1. Set `FIREBASE_STRICT_AUTH=true`.
-2. Configure one of these two credential options:
-3. Option A: `FIREBASE_CREDENTIALS_JSON` with `project_id`, `client_email`, `private_key`.
-4. Option B: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`.
-5. Do not use `X-Dev-Firebase-Uid` in production environments.
-6. Rotate credentials and keep them outside the repository.
-
-## Backoffice contract
-
-### Monitor JSON
-
-`GET /monitor/stats` returns:
-
-- `traffic`: request/bytes counters.
-- `auth`: authentication attempts ok/fail.
-- `users`: created/updated synchronizations.
-- `gameplay`: events, outcomes, aggregated by type and language.
-- `requestsByRoute`: cardinality by method/route/status.
-
-### Prometheus
-
-`GET /metrics` exposes series such as:
-
-- `microservice_requests_received_total`
-- `microservice_auth_attempts_total`
-- `microservice_auth_success_total`
-- `microservice_auth_failure_total`
-- `microservice_users_created_total`
-- `microservice_users_updated_total`
-- `microservice_game_events_stored_total`
-- `microservice_games_won_total`
-- `microservice_games_lost_total`
-- `microservice_games_draw_total`
-- `microservice_game_events_by_type_total{game_type=...}`
-- `microservice_game_events_by_language_total{language=...}`
-
-CI automation probe: 2026-04-04T16:23:48Z
-automation recheck 16:26:48Z
-automation final proof 16:30:13Z
+Push to `main` triggers image rebuild in `platform-infra`, followed by automatic deployment to `dev`.

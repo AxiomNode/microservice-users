@@ -39,5 +39,7 @@ COPY --from=build /workspace/shared-sdk-client/typescript /shared-sdk-client/typ
 COPY --from=build /workspace/microservice-users/src/dist ./dist
 COPY --from=build /workspace/microservice-users/src/prisma ./prisma
 COPY --from=build /workspace/microservice-users/src/.env.example ./.env.example
+RUN mkdir -p /workspace /shared-sdk-client && chown -R node:node /app /workspace /shared-sdk-client
+USER node
 EXPOSE 7100
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/app/server.js"]

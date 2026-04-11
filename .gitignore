@@ -31,7 +31,11 @@ Thumbs.db
 .env.*
 **/.env
 **/.env.*
-( ai-engine api-gateway bff-backoffice bff-mobile microservice-quizz microservice-users microservice-wordpass shared-sdk-client backoffice contracts-and-schemas docs observability-platform platform-infra )*/.env.example
+!**/.env.example
+!**/.env.sample
+!**/.env.template
 **/.env.secrets
 *.secrets.env
 runtime/**/*.env
+*firebase*service-account*.json
+*service-account*.json

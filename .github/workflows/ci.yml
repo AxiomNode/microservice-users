@@ -75,7 +75,7 @@ jobs:
         run: npm run lint
 
       - name: Audit production dependencies
-        run: npm audit --omit=dev
+        run: npm audit --omit=dev --audit-level=high
 
   trigger-platform-infra-build:
     name: Trigger Platform Infra Build

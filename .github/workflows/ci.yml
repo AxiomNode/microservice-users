@@ -118,6 +118,26 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: microservice-users
+      - name: Validate cross-repo token
+        run: |
+          if [[ -z "${{ secrets.CROSS_REPO_READ_TOKEN }}" ]]; then
+            echo "CROSS_REPO_READ_TOKEN is required to checkout shared workspace dependencies in Docker smoke."
+            exit 1
+          fi
+
+      - name: Checkout shared-sdk-client
+        uses: actions/checkout@v4
+        with:
+          repository: AxiomNode/shared-sdk-client
+          path: shared-sdk-client
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+
+      - name: Checkout contracts-and-schemas
+        uses: actions/checkout@v4
+        with:
+          repository: AxiomNode/contracts-and-schemas
+          path: contracts-and-schemas
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
 
       - name: Prepare env file
         run: |

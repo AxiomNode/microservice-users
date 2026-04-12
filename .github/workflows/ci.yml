@@ -123,6 +123,7 @@ jobs:
         run: |
           cp microservice-users/src/.env.example microservice-users/src/.env
           sed -i 's/^FIREBASE_STRICT_AUTH=.*/FIREBASE_STRICT_AUTH=false/' microservice-users/src/.env
+          : > microservice-users/src/.env.secrets
 
       - name: Start stack
         run: docker compose -f microservice-users/docker-compose.yml up -d --build

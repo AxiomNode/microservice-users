@@ -22,6 +22,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate cross-repo token
+        run: |
+          if [[ -z "${{ secrets.CROSS_REPO_READ_TOKEN }}" ]]; then
+            echo "CROSS_REPO_READ_TOKEN is required to checkout AxiomNode/shared-sdk-client in CI."
+            exit 1
+          fi
+
+      - name: Checkout shared-sdk-client
+        uses: actions/checkout@v4
+        with:
+          repository: AxiomNode/shared-sdk-client
+          path: shared-sdk-client
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+
       - name: Enforce tracked artifact policy
         working-directory: .
         run: |
@@ -39,6 +53,12 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: src/package-lock.json
+
+      - name: Build shared SDK package
+        working-directory: shared-sdk-client/typescript
+        run: |
+          npm ci
+          npx tsc -p tsconfig.json
 
       - name: Install dependencies
         run: npm ci

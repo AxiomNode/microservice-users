@@ -63,38 +63,45 @@ export class FirebaseAuthService {
       return getApps()[0] ?? null;
     }
 
-    const credentialsJson = this.config.FIREBASE_CREDENTIALS_JSON;
-    if (credentialsJson) {
-      const parsed = JSON.parse(credentialsJson) as {
-        project_id: string;
-        client_email: string;
-        private_key: string;
-      };
+    try {
+      const credentialsJson = this.config.FIREBASE_CREDENTIALS_JSON;
+      if (credentialsJson) {
+        const parsed = JSON.parse(credentialsJson) as {
+          project_id: string;
+          client_email: string;
+          private_key: string;
+        };
+
+        return initializeApp({
+          credential: cert({
+            projectId: parsed.project_id,
+            clientEmail: parsed.client_email,
+            privateKey: parsed.private_key
+          })
+        });
+      }
+
+      const projectId = this.config.FIREBASE_PROJECT_ID;
+      const clientEmail = this.config.FIREBASE_CLIENT_EMAIL;
+      const privateKey = this.config.FIREBASE_PRIVATE_KEY;
+
+      if (!projectId || !clientEmail || !privateKey) {
+        return null;
+      }
 
       return initializeApp({
         credential: cert({
-          projectId: parsed.project_id,
-          clientEmail: parsed.client_email,
-          privateKey: parsed.private_key
+          projectId,
+          clientEmail,
+          privateKey: privateKey.replace(/\\n/g, "\n")
         })
       });
+    } catch (error) {
+      if (!this.config.FIREBASE_STRICT_AUTH) {
+        return null;
+      }
+      throw error;
     }
-
-    const projectId = this.config.FIREBASE_PROJECT_ID;
-    const clientEmail = this.config.FIREBASE_CLIENT_EMAIL;
-    const privateKey = this.config.FIREBASE_PRIVATE_KEY;
-
-    if (!projectId || !clientEmail || !privateKey) {
-      return null;
-    }
-
-    return initializeApp({
-      credential: cert({
-        projectId,
-        clientEmail,
-        privateKey: privateKey.replace(/\\n/g, "\n")
-      })
-    });
   }
 
   private extractBearerToken(authorizationHeader?: string): string | null {

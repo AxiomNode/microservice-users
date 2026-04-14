@@ -297,6 +297,22 @@ describe("users routes integration", () => {
     await app.close();
   });
 
+  it("returns 400 for invalid leaderboard query params", async () => {
+    const { app } = await createApp(false);
+
+    const leaderboard = await app.inject({
+      method: "GET",
+      url: "/users/leaderboard?limit=9999"
+    });
+
+    expect(leaderboard.statusCode).toBe(400);
+    expect(leaderboard.json()).toMatchObject({
+      message: "Invalid query parameters"
+    });
+
+    await app.close();
+  });
+
   it("returns 401 when auth fails", async () => {
     const { app } = await createApp(true);
 

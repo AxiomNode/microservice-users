@@ -85,7 +85,33 @@ jobs:
       - docker-smoke-private-docs
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect runtime-relevant changes
+        id: dispatch_scope
+        run: |
+          set -euo pipefail
+
+          BASE_SHA="${{ github.event.before }}"
+          HEAD_SHA="${{ github.sha }}"
+          if [[ -n "${BASE_SHA}" && "${BASE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+            CHANGED=$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD)
+          fi
+
+          NON_DOC=$(printf '%s\n' "${CHANGED}" | grep -Ev '^(docs/|\.github/|README\.md$|AGENTS\.md$|LICENSE$|CONTRIBUTING\.md$)|\.md$' || true)
+          if [[ -z "${NON_DOC}" ]]; then
+            echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
+            echo "Docs-only change detected; skipping platform-infra dispatch."
+          else
+            echo "should_dispatch=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Dispatch build-push in platform-infra
+        if: steps.dispatch_scope.outputs.should_dispatch == 'true'
         env:
           DISPATCH_TOKEN: ${{ secrets.PLATFORM_INFRA_DISPATCH_TOKEN }}
         run: |
@@ -110,6 +136,10 @@ jobs:
           fi
 
           echo "Dispatched platform-infra Build & Push for microservice-users."
+
+      - name: Skip platform-infra dispatch for docs-only changes
+        if: steps.dispatch_scope.outputs.should_dispatch != 'true'
+        run: echo "Skipping platform-infra dispatch because this push only changed documentation or workflow files."
 
   docker-smoke-private-docs:
     name: Docker Smoke + Private Docs

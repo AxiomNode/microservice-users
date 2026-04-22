@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { App } from "firebase-admin/app";
 
 import type { AppConfig } from "../app/config.js";
 
 const certMock = vi.fn((value) => value);
-const getAppsMock = vi.fn(() => []);
+const getAppsMock = vi.fn<() => App[]>(() => []);
 const initializeAppMock = vi.fn();
 const verifyIdTokenMock = vi.fn();
 const getAuthMock = vi.fn(() => ({ verifyIdToken: verifyIdTokenMock }));
@@ -80,7 +81,7 @@ describe("FirebaseAuthService", () => {
   });
 
   it("reuses an already initialized Firebase app", async () => {
-    const existingApp = { name: "existing-app" };
+    const existingApp = { name: "existing-app" } as unknown as App;
     getAppsMock.mockReturnValue([existingApp]);
 
     const { FirebaseAuthService } = await import("../app/services/firebaseAuthService.js");

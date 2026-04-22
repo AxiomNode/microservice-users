@@ -71,8 +71,16 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Test
-        run: npm test
+      - name: Test coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: microservice-users/src/coverage/lcov.info
+          flags: microservice-users
+          fail_ci_if_error: false
 
       - name: Lint
         run: npm run lint

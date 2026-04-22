@@ -138,6 +138,7 @@ export async function usersRoutes(
   app.get("/users/me/profile", { preHandler: requireAuth }, async (request, reply) => {
     const req = request as AuthenticatedRequest;
     const identity = req.userIdentity;
+    /* v8 ignore next -- requireAuth either populates identity or already returns 401 */
     if (!identity) {
       return reply.status(401).send({ message: "Unauthorized" });
     }
@@ -161,6 +162,7 @@ export async function usersRoutes(
   app.get("/users/me/stats", { preHandler: requireAuth }, async (request, reply) => {
     const req = request as AuthenticatedRequest;
     const identity = req.userIdentity;
+    /* v8 ignore next -- requireAuth either populates identity or already returns 401 */
     if (!identity) {
       return reply.status(401).send({ message: "Unauthorized" });
     }
@@ -180,6 +182,7 @@ export async function usersRoutes(
   app.post("/users/me/games/events", { preHandler: requireAuth }, async (request, reply) => {
     const req = request as AuthenticatedRequest;
     const identity = req.userIdentity;
+    /* v8 ignore next -- requireAuth either populates identity or already returns 401 */
     if (!identity) {
       return reply.status(401).send({ message: "Unauthorized" });
     }
@@ -213,6 +216,7 @@ export async function usersRoutes(
   app.get("/users/admin/roles", { preHandler: requireAuth }, async (request, reply) => {
     const req = request as AuthenticatedRequest;
     const identity = req.userIdentity;
+    /* v8 ignore next -- requireAuth either populates identity or already returns 401 */
     if (!identity) {
       return reply.status(401).send({ message: "Unauthorized" });
     }
@@ -238,6 +242,7 @@ export async function usersRoutes(
   app.patch("/users/admin/roles/:firebaseUid", { preHandler: requireAuth }, async (request, reply) => {
     const req = request as AuthenticatedRequest;
     const identity = req.userIdentity;
+    /* v8 ignore next -- requireAuth either populates identity or already returns 401 */
     if (!identity) {
       return reply.status(401).send({ message: "Unauthorized" });
     }

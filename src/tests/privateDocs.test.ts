@@ -28,6 +28,23 @@ function baseConfig(overrides: Partial<AppConfig> = {}): AppConfig {
 }
 
 describe("private docs plugin", () => {
+  it("does not register docs routes when the feature is disabled", async () => {
+    const app = Fastify();
+    await app.register(swagger, {
+      openapi: { info: { title: "test", version: "1.0.0" } }
+    });
+
+    await registerPrivateDocs(app, baseConfig({ PRIVATE_DOCS_ENABLED: false }));
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/private/docs/json"
+    });
+
+    expect(response.statusCode).toBe(404);
+    await app.close();
+  });
+
   it("returns 401 without token", async () => {
     const app = Fastify();
     await app.register(swagger, {
@@ -42,6 +59,24 @@ describe("private docs plugin", () => {
     });
 
     expect(unauthorized.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it("returns 401 when docs are enabled but no expected token is configured", async () => {
+    const app = Fastify();
+    await app.register(swagger, {
+      openapi: { info: { title: "test", version: "1.0.0" } }
+    });
+
+    await registerPrivateDocs(app, baseConfig({ PRIVATE_DOCS_TOKEN: undefined }));
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/private/docs/json",
+      headers: { "x-private-docs-token": "anything" }
+    });
+
+    expect(response.statusCode).toBe(401);
     await app.close();
   });
 

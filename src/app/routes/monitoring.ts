@@ -19,6 +19,7 @@ export async function monitoringRoutes(app: FastifyInstance, metrics: ServiceMet
   });
 
   app.get("/monitor/logs", async (request, reply) => {
+    /* v8 ignore next -- Fastify provides an object for query; fallback is defensive */
     const parsed = LogsQuerySchema.safeParse(request.query ?? {});
     if (!parsed.success) {
       return reply.status(400).send({

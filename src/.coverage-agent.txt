@@ -1,0 +1,45 @@
+
+> microservice-users@0.1.0 test:coverage
+> vitest run --coverage
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.8 [39m[90mC:/Users/sebss/Documents/AxiomNode/microservice-users/src[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m tests/serviceMetrics.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m tests/config.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m tests/firebaseAuthService.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+ [32m✓[39m tests/userService.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m tests/health.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 316[2mms[22m[39m
+   [33m[2m✓[22m[39m health route[2m > [22mreturns service metadata [33m315[2mms[22m[39m
+ [32m✓[39m tests/monitoring.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 307[2mms[22m[39m
+   [33m[2m✓[22m[39m monitoring routes[2m > [22mreturns stats, bounded logs and prometheus metrics [33m302[2mms[22m[39m
+ [32m✓[39m tests/users.integration.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 264[2mms[22m[39m
+ [32m✓[39m tests/privateDocs.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 432[2mms[22m[39m
+   [33m[2m✓[22m[39m private docs plugin[2m > [22mdoes not register docs routes when the feature is disabled [33m368[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m8 passed[39m[22m[90m (8)[39m
+[2m      Tests [22m [1m[32m43 passed[39m[22m[90m (43)[39m
+[2m   Start at [22m 19:16:23
+[2m   Duration [22m 1.19s[2m (transform 630ms, setup 0ms, collect 1.68s, tests 1.39s, environment 2ms, prepare 1.18s)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   97.36 |    91.51 |     100 |   97.36 |                   
+ app               |   98.82 |    96.29 |     100 |   98.82 |                   
+  config.ts        |   98.82 |    96.29 |     100 |   98.82 | 23                
+ app/db            |     100 |      100 |     100 |     100 |                   
+  client.ts        |     100 |      100 |     100 |     100 |                   
+ app/plugins       |     100 |      100 |     100 |     100 |                   
+  privateDocs.ts   |     100 |      100 |     100 |     100 |                   
+ app/routes        |   92.36 |    81.15 |     100 |   92.36 |                   
+  health.ts        |     100 |      100 |     100 |     100 |                   
+  monitoring.ts    |     100 |      100 |     100 |     100 |                   
+  users.ts         |   91.21 |    78.33 |     100 |   91.21 | ...56-257,285-286 
+ app/services      |   99.21 |    95.83 |     100 |   99.21 |                   
+  ...uthService.ts |   98.16 |    94.44 |     100 |   98.16 | 123-124           
+  ...iceMetrics.ts |     100 |      100 |     100 |     100 |                   
+  userService.ts   |   99.16 |    94.73 |     100 |   99.16 | 100,460-461       
+-------------------|---------|----------|---------|---------|-------------------

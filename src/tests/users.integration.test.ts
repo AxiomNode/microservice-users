@@ -8,6 +8,9 @@ import { usersRoutes } from "../app/routes/users.js";
 import { FirebaseIdentity } from "../app/services/firebaseAuthService.js";
 import { FirebaseAuthService } from "../app/services/firebaseAuthService.js";
 import { ServiceMetrics } from "../app/services/serviceMetrics.js";
+import { AccessDeniedError } from "../app/services/userService.js";
+import { NotFoundError } from "../app/services/userService.js";
+import { RoleValidationError } from "../app/services/userService.js";
 import { UserService } from "../app/services/userService.js";
 import { UserStatsSnapshot } from "../app/services/userService.js";
 
@@ -107,11 +110,26 @@ function defaultStats(): UserStatsSnapshot {
 }
 
 class FakeFirebaseAuthService {
-  constructor(private readonly authIdentity: FirebaseIdentity, private readonly shouldFail = false) {}
+  public lastAuthHeader: string | undefined;
+  public lastDevUid: string | undefined;
 
-  async authenticateFromBearer(): Promise<FirebaseIdentity> {
-    if (this.shouldFail) {
+  constructor(
+    private readonly authIdentity: FirebaseIdentity,
+    private readonly failureMode: "none" | "error" | "non-error" = "none"
+  ) {}
+
+  async authenticateFromBearer(
+    authorizationHeader?: string,
+    devUidHeader?: string
+  ): Promise<FirebaseIdentity> {
+    this.lastAuthHeader = authorizationHeader;
+    this.lastDevUid = devUidHeader;
+
+    if (this.failureMode === "error") {
       throw new Error("invalid token");
+    }
+    if (this.failureMode === "non-error") {
+      throw "invalid token";
     }
     return this.authIdentity;
   }
@@ -120,9 +138,16 @@ class FakeFirebaseAuthService {
 class FakeUserService {
   private created = true;
   private readonly storedEvents: Array<Record<string, unknown>> = [];
+  private currentRole: "SuperAdmin" | "Admin" | "Viewer" | "Gamer" = "Admin";
+  private listAssignmentsError: Error | null = null;
+  private updateRoleError: Error | null = null;
+  private failRoleLookup = false;
 
   async getRoleByFirebaseUid(): Promise<"SuperAdmin" | "Admin" | "Viewer" | "Gamer"> {
-    return "Admin";
+    if (this.failRoleLookup) {
+      throw new Error("role lookup failed");
+    }
+    return this.currentRole;
   }
 
   async upsertUserFromIdentity() {
@@ -132,6 +157,9 @@ class FakeUserService {
   }
 
   async recordGameEvent(_firebaseUid: string, event: Record<string, unknown>): Promise<void> {
+    if (this.currentRole === "Viewer") {
+      throw new AccessDeniedError("Viewer cannot modify data.");
+    }
     this.storedEvents.push(event);
   }
 
@@ -173,12 +201,48 @@ class FakeUserService {
   getEventsStored(): number {
     return this.storedEvents.length;
   }
+
+  setCurrentRole(role: "SuperAdmin" | "Admin" | "Viewer" | "Gamer") {
+    this.currentRole = role;
+  }
+
+  setListAssignmentsError(error: Error | null) {
+    this.listAssignmentsError = error;
+  }
+
+  async listRoleAssignments() {
+    if (this.listAssignmentsError) {
+      throw this.listAssignmentsError;
+    }
+    return [{ firebaseUid: "uid-a", displayName: "A", email: "a@test.dev", role: "Viewer" }];
+  }
+
+  setUpdateRoleError(error: Error | null) {
+    this.updateRoleError = error;
+  }
+
+  setFailRoleLookup(shouldFail: boolean) {
+    this.failRoleLookup = shouldFail;
+  }
+
+  async updateUserRoleByFirebaseUid() {
+    if (this.updateRoleError) {
+      throw this.updateRoleError;
+    }
+    return {
+      firebaseUid: "uid-a",
+      displayName: "A",
+      email: "a@test.dev",
+      role: "Viewer",
+      updatedAt: new Date("2026-04-20T10:00:00.000Z"),
+    };
+  }
 }
 
-async function createApp(shouldAuthFail = false) {
+async function createApp(failureMode: "none" | "error" | "non-error" = "none") {
   const app = Fastify();
   const metrics = new ServiceMetrics(baseConfig());
-  const authService = new FakeFirebaseAuthService(identity, shouldAuthFail);
+  const authService = new FakeFirebaseAuthService(identity, failureMode);
   const userService = new FakeUserService();
 
   await usersRoutes(
@@ -189,7 +253,7 @@ async function createApp(shouldAuthFail = false) {
   );
   await monitoringRoutes(app, metrics);
 
-  return { app, userService };
+  return { app, authService, userService };
 }
 
 describe("users routes integration", () => {
@@ -198,7 +262,7 @@ describe("users routes integration", () => {
   });
 
   it("creates firebase session and returns created then updated", async () => {
-    const { app } = await createApp(false);
+    const { app } = await createApp();
 
     const first = await app.inject({
       method: "POST",
@@ -229,7 +293,7 @@ describe("users routes integration", () => {
   });
 
   it("stores game event and exposes metrics counters", async () => {
-    const { app, userService } = await createApp(false);
+    const { app, userService } = await createApp();
 
     const store = await app.inject({
       method: "POST",
@@ -264,7 +328,7 @@ describe("users routes integration", () => {
   });
 
   it("returns stats and leaderboard with expected shape", async () => {
-    const { app } = await createApp(false);
+    const { app } = await createApp();
 
     const stats = await app.inject({
       method: "GET",
@@ -298,7 +362,7 @@ describe("users routes integration", () => {
   });
 
   it("returns 400 for invalid leaderboard query params", async () => {
-    const { app } = await createApp(false);
+    const { app } = await createApp();
 
     const leaderboard = await app.inject({
       method: "GET",
@@ -314,7 +378,7 @@ describe("users routes integration", () => {
   });
 
   it("returns 401 when auth fails", async () => {
-    const { app } = await createApp(true);
+    const { app } = await createApp("error");
 
     const response = await app.inject({
       method: "GET",
@@ -325,6 +389,199 @@ describe("users routes integration", () => {
     });
 
     expect(response.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it("returns profile summary and rejects invalid stats queries", async () => {
+    const { app, authService } = await createApp();
+
+    const profile = await app.inject({
+      method: "GET",
+      url: "/users/me/profile",
+      headers: {
+        authorization: "Bearer fake",
+        "x-dev-firebase-uid": "dev-uid-123"
+      }
+    });
+
+    expect(profile.statusCode).toBe(200);
+    expect(authService.lastDevUid).toBe("dev-uid-123");
+    expect(profile.json()).toMatchObject({
+      role: "Admin",
+      gameSummary: {
+        byGameType: [expect.objectContaining({ gameType: "quiz" })],
+      },
+    });
+
+    const invalidStats = await app.inject({
+      method: "GET",
+      url: "/users/me/stats?recentLimit=0",
+      headers: {
+        authorization: "Bearer fake"
+      }
+    });
+
+    expect(authService.lastDevUid).toBeUndefined();
+    expect(invalidStats.statusCode).toBe(400);
+    expect(invalidStats.json()).toMatchObject({ message: "Invalid query parameters" });
+
+    await app.close();
+  });
+
+  it("rejects invalid game-event payloads and forbidden viewer writes", async () => {
+    const { app, userService } = await createApp();
+
+    const invalidPayload = await app.inject({
+      method: "POST",
+      url: "/users/me/games/events",
+      headers: {
+        authorization: "Bearer fake"
+      },
+      payload: {},
+    });
+
+    userService.setCurrentRole("Viewer");
+    const forbidden = await app.inject({
+      method: "POST",
+      url: "/users/me/games/events",
+      headers: {
+        authorization: "Bearer fake"
+      },
+      payload: {
+        gameType: "quiz",
+        language: "es",
+        outcome: "won",
+      },
+    });
+
+    expect(invalidPayload.statusCode).toBe(400);
+    expect(invalidPayload.json()).toMatchObject({ message: "Invalid payload" });
+    expect(forbidden.statusCode).toBe(403);
+
+    await app.close();
+  });
+
+  it("covers admin role routes for forbidden, validation, domain errors, and success", async () => {
+    const { app, userService } = await createApp();
+
+    userService.setCurrentRole("Admin");
+    const forbiddenList = await app.inject({
+      method: "GET",
+      url: "/users/admin/roles",
+      headers: { authorization: "Bearer fake" },
+    });
+
+    userService.setCurrentRole("SuperAdmin");
+    userService.setListAssignmentsError(new AccessDeniedError("Only SuperAdmin can manage role assignments."));
+    const deniedList = await app.inject({
+      method: "GET",
+      url: "/users/admin/roles",
+      headers: { authorization: "Bearer fake" },
+    });
+    userService.setListAssignmentsError(null);
+    const okList = await app.inject({
+      method: "GET",
+      url: "/users/admin/roles",
+      headers: { authorization: "Bearer fake" },
+    });
+
+    const invalidPatch = await app.inject({
+      method: "PATCH",
+      url: "/users/admin/roles/uid-a",
+      headers: { authorization: "Bearer fake" },
+      payload: {},
+    });
+
+    userService.setUpdateRoleError(new AccessDeniedError("blocked"));
+    const deniedPatch = await app.inject({
+      method: "PATCH",
+      url: "/users/admin/roles/uid-a",
+      headers: { authorization: "Bearer fake" },
+      payload: { role: "Viewer" },
+    });
+    userService.setUpdateRoleError(new RoleValidationError("Unsupported role"));
+    const invalidRolePatch = await app.inject({
+      method: "PATCH",
+      url: "/users/admin/roles/uid-a",
+      headers: { authorization: "Bearer fake" },
+      payload: { role: "Viewer" },
+    });
+    userService.setUpdateRoleError(new NotFoundError("Target user not found."));
+    const missingPatch = await app.inject({
+      method: "PATCH",
+      url: "/users/admin/roles/uid-a",
+      headers: { authorization: "Bearer fake" },
+      payload: { role: "Viewer" },
+    });
+    userService.setUpdateRoleError(null);
+    const okPatch = await app.inject({
+      method: "PATCH",
+      url: "/users/admin/roles/uid-a",
+      headers: { authorization: "Bearer fake" },
+      payload: { role: "Viewer" },
+    });
+
+    expect(forbiddenList.statusCode).toBe(403);
+    expect(deniedList.statusCode).toBe(403);
+    expect(okList.statusCode).toBe(200);
+    expect(okList.json()).toMatchObject({ total: 1 });
+    expect(invalidPatch.statusCode).toBe(400);
+    expect(deniedPatch.statusCode).toBe(403);
+    expect(invalidRolePatch.statusCode).toBe(400);
+    expect(missingPatch.statusCode).toBe(404);
+    expect(okPatch.statusCode).toBe(200);
+    expect(okPatch.json()).toMatchObject({ message: "Role updated" });
+
+    await app.close();
+  });
+
+  it("covers invalid session payloads and unknown auth errors", async () => {
+    const { app } = await createApp("non-error");
+
+    const invalidPayload = await app.inject({
+      method: "POST",
+      url: "/users/firebase/session",
+      payload: { idToken: "short" },
+    });
+    const invalidToken = await app.inject({
+      method: "POST",
+      url: "/users/firebase/session",
+      payload: { idToken: "long-enough-token" },
+    });
+    const profileUnauthorized = await app.inject({
+      method: "GET",
+      url: "/users/me/profile",
+      headers: { authorization: "Bearer fake" },
+    });
+    const logs = await app.inject({ method: "GET", url: "/monitor/logs?limit=5" });
+
+    expect(invalidPayload.statusCode).toBe(400);
+    expect(invalidToken.statusCode).toBe(401);
+    expect(invalidToken.json()).toMatchObject({
+      message: "Invalid Firebase token",
+      error: "Unknown error",
+    });
+    expect(profileUnauthorized.statusCode).toBe(401);
+    expect(logs.json()).toMatchObject({
+      logs: [expect.objectContaining({ message: "firebase_auth_failed", context: { error: "Unknown auth error" } })],
+    });
+
+    await app.close();
+  });
+
+  it("forbids admin routes when role lookup fails during preHandler", async () => {
+    const { app, userService } = await createApp();
+    userService.setFailRoleLookup(true);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/users/admin/roles",
+      headers: { authorization: "Bearer fake" },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ message: "Forbidden. SuperAdmin required." });
+
     await app.close();
   });
 });

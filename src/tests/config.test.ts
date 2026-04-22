@@ -51,4 +51,85 @@ describe("loadConfig", () => {
     expect(config.FIREBASE_STRICT_AUTH).toBe(true);
     expect(config.FIREBASE_CREDENTIALS_JSON).toContain("project_id");
   });
+
+  it("accepts strict auth when the credential triplet is present and private docs are configured", () => {
+    withEnv({
+      DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
+      FIREBASE_STRICT_AUTH: "yes",
+      FIREBASE_PROJECT_ID: "project-triplet",
+      FIREBASE_CLIENT_EMAIL: "triplet@test.dev",
+      FIREBASE_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n",
+      FIREBASE_CREDENTIALS_JSON: "",
+      PRIVATE_DOCS_ENABLED: "on",
+      PRIVATE_DOCS_TOKEN: "docs-token",
+    });
+
+    const config = loadConfig();
+
+    expect(config.FIREBASE_STRICT_AUTH).toBe(true);
+    expect(config.PRIVATE_DOCS_ENABLED).toBe(true);
+    expect(config.PRIVATE_DOCS_TOKEN).toBe("docs-token");
+  });
+
+  it("fails when credentials json is invalid or missing required fields", () => {
+    withEnv({
+      DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
+      PRIVATE_DOCS_ENABLED: "false",
+      FIREBASE_STRICT_AUTH: "true",
+      FIREBASE_CREDENTIALS_JSON: "not-json",
+      FIREBASE_PROJECT_ID: "",
+      FIREBASE_CLIENT_EMAIL: "",
+      FIREBASE_PRIVATE_KEY: "",
+    });
+
+    expect(() => loadConfig()).toThrow("Invalid environment configuration for microservice-users");
+
+    withEnv({
+      DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
+      PRIVATE_DOCS_ENABLED: "false",
+      FIREBASE_STRICT_AUTH: "true",
+      FIREBASE_CREDENTIALS_JSON: '{"project_id":"project-x"}',
+      FIREBASE_PROJECT_ID: "",
+      FIREBASE_CLIENT_EMAIL: "",
+      FIREBASE_PRIVATE_KEY: "",
+    });
+
+    expect(() => loadConfig()).toThrow("Invalid environment configuration for microservice-users");
+  });
+
+  it("fails when private docs are enabled without a token", () => {
+    withEnv({
+      DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
+      PRIVATE_DOCS_ENABLED: "true",
+      PRIVATE_DOCS_TOKEN: "",
+      FIREBASE_STRICT_AUTH: "true",
+      FIREBASE_PROJECT_ID: "project-triplet",
+      FIREBASE_CLIENT_EMAIL: "triplet@test.dev",
+      FIREBASE_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n",
+      FIREBASE_CREDENTIALS_JSON: "",
+    });
+
+    expect(() => loadConfig()).toThrow("Invalid environment configuration for microservice-users");
+  });
+
+  it("normalizes optional blanks and boolean synonyms when strict auth is disabled", () => {
+    withEnv({
+      DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
+      FIREBASE_STRICT_AUTH: "off",
+      FIREBASE_PROJECT_ID: "   ",
+      FIREBASE_CLIENT_EMAIL: "   ",
+      FIREBASE_PRIVATE_KEY: "   ",
+      FIREBASE_CREDENTIALS_JSON: "   ",
+      PRIVATE_DOCS_ENABLED: "no",
+      PRIVATE_DOCS_TOKEN: "   ",
+    });
+
+    const config = loadConfig();
+
+    expect(config.FIREBASE_STRICT_AUTH).toBe(false);
+    expect(config.PRIVATE_DOCS_ENABLED).toBe(false);
+    expect(config.FIREBASE_PROJECT_ID).toBeUndefined();
+    expect(config.FIREBASE_CREDENTIALS_JSON).toBeUndefined();
+    expect(config.PRIVATE_DOCS_TOKEN).toBeUndefined();
+  });
 });

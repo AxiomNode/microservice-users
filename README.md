@@ -1,5 +1,7 @@
 # microservice-users
 
+[![codecov](https://codecov.io/gh/AxiomNode/microservice-users/branch/main/graph/badge.svg)](https://codecov.io/gh/AxiomNode/microservice-users)
+
 User identity and gameplay analytics service for AxiomNode.
 
 ## Architectural role
@@ -15,6 +17,14 @@ It is a private internal service consumed primarily by `bff-mobile` and `bff-bac
 - Manage user profile and identity-linked session flows.
 - Track gameplay events and aggregate operational metrics.
 - Expose leaderboard and monitoring endpoints for BFF consumers.
+
+## Owned state
+
+`microservice-users` owns:
+
+- authenticated player profile data
+- gameplay event ingestion records
+- leaderboard and profile-oriented aggregate reads
 
 ## Primary use cases
 
@@ -35,6 +45,17 @@ It is a private internal service consumed primarily by `bff-mobile` and `bff-bac
 - `GET /users/me/stats?recentLimit=20`
 - `POST /users/me/games/events`
 - `GET /users/leaderboard?metric=won|score|played&limit=20`
+
+## Dependency model
+
+Primary infrastructure dependency:
+
+- PostgreSQL
+
+Primary application consumers:
+
+- `bff-mobile`
+- `bff-backoffice`
 
 ## Private docs
 
@@ -76,3 +97,10 @@ Push to `main` triggers image rebuild in `platform-infra`, followed by automatic
 - Failures in this repo stop image publication for that change.
 - Deployment diagnostics for rollout failures live in `platform-infra`, not here.
 - Private docs checks are part of the release safety contract for this service.
+
+## Failure boundaries
+
+- Firebase auth or strict-auth startup failure
+- PostgreSQL persistence or query failure
+- degraded stats or leaderboard reads while health still answers
+- private docs auth regression

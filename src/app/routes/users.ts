@@ -1,7 +1,7 @@
 import { UserRole } from "@prisma/client";
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { LeaderboardQuerySchema as BaseLeaderboardQuerySchema } from "@axiomnode/shared-sdk-client/contracts";
+import { LeaderboardQuerySchema as BaseLeaderboardQuerySchema } from "@axiomnode/shared-sdk-client";
 
 import { FirebaseAuthService, FirebaseIdentity } from "../services/firebaseAuthService.js";
 import { ServiceMetrics } from "../services/serviceMetrics.js";

@@ -67,6 +67,7 @@ Primary application consumers:
 
 - Standard mode: `Authorization: Bearer <firebase_id_token>`
 - Dev fallback (only with `FIREBASE_STRICT_AUTH=false`): `X-Dev-Firebase-Uid: <uid>`
+- When Firebase is not configured, bearer tokens are rejected; relaxed mode only enables the explicit dev header fallback.
 
 In strict mode, Firebase credentials are mandatory at startup.
 

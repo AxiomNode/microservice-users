@@ -52,11 +52,6 @@ afterEach(() => {
   getAuthMock.mockClear();
 });
 
-function encodeJwtPayload(payload: Record<string, unknown>): string {
-  const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
-  return `header.${encoded}.signature`;
-}
-
 describe("FirebaseAuthService", () => {
   it("ignores invalid Firebase credentials when strict auth is disabled", async () => {
     initializeAppMock.mockImplementation(() => {
@@ -156,36 +151,7 @@ describe("FirebaseAuthService", () => {
     });
   });
 
-  it("decodes JWT payload without verification when strict auth is disabled and Firebase is not configured", async () => {
-    const { FirebaseAuthService } = await import("../app/services/firebaseAuthService.js");
-
-    const service = new FirebaseAuthService(baseConfig({
-      FIREBASE_PROJECT_ID: undefined,
-      FIREBASE_CLIENT_EMAIL: undefined,
-      FIREBASE_PRIVATE_KEY: undefined,
-    }));
-
-    const identity = await service.authenticateFromBearer(
-      `Bearer ${encodeJwtPayload({
-        uid: "jwt-user",
-        email: "jwt@test.dev",
-        email_verified: false,
-        name: "JWT User",
-        picture: "https://img.test/jwt.png",
-      })}`
-    );
-
-    expect(identity).toEqual({
-      firebaseUid: "jwt-user",
-      email: "jwt@test.dev",
-      emailVerified: false,
-      displayName: "JWT User",
-      photoUrl: "https://img.test/jwt.png",
-      provider: "firebase",
-    });
-  });
-
-  it("rejects missing or malformed auth when strict auth does not allow fallback", async () => {
+  it("rejects bearer tokens when Firebase is not configured even if strict auth is disabled", async () => {
     const { FirebaseAuthService } = await import("../app/services/firebaseAuthService.js");
 
     const strictService = new FirebaseAuthService(baseConfig({ FIREBASE_STRICT_AUTH: true }));
@@ -197,7 +163,7 @@ describe("FirebaseAuthService", () => {
 
     await expect(strictService.authenticateFromBearer(undefined)).rejects.toThrow("Missing bearer token");
     await expect(relaxedService.authenticateFromBearer("Basic token")).rejects.toThrow("Missing bearer token");
-    await expect(relaxedService.authenticateFromBearer("Bearer invalid.token")).rejects.toThrow(
+    await expect(relaxedService.authenticateFromBearer("Bearer header.payload.signature")).rejects.toThrow(
       "Firebase auth is not configured"
     );
   });

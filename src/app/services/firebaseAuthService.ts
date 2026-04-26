@@ -48,13 +48,6 @@ export class FirebaseAuthService {
       return this.mapDecodedToken(decoded);
     }
 
-    if (!this.config.FIREBASE_STRICT_AUTH) {
-      const decoded = this.decodeJwtWithoutVerification(token);
-      if (decoded) {
-        return this.mapDecodedToken(decoded);
-      }
-    }
-
     throw new Error("Firebase auth is not configured");
   }
 
@@ -115,23 +108,6 @@ export class FirebaseAuthService {
     }
 
     return token;
-  }
-
-  private decodeJwtWithoutVerification(token: string): DecodedIdToken | null {
-    const parts = token.split(".");
-    if (parts.length < 2 || !parts[1]) {
-      return null;
-    }
-
-    try {
-      const payload = Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString(
-        "utf8"
-      );
-      const parsed = JSON.parse(payload) as Record<string, unknown>;
-      return parsed as DecodedIdToken;
-    } catch {
-      return null;
-    }
   }
 
   private mapDecodedToken(decoded: DecodedIdToken): FirebaseIdentity {

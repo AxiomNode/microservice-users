@@ -8,6 +8,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Workflow-level permissions stay read-only: this pipeline checks out source,
+# reads shared dependencies, uploads coverage, and triggers cross-repo dispatch
+# through an explicit token instead of broadening GITHUB_TOKEN privileges.
 permissions:
   contents: read
 

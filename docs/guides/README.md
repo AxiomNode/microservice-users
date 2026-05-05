@@ -1,5 +1,7 @@
 # Guides
 
+Last updated: 2026-05-03.
+
 ## Scope
 
 This section groups repository-local guidance for integrating with `microservice-users` safely.

@@ -1,5 +1,7 @@
 # microservice-users docs
 
+Last updated: 2026-05-03.
+
 Technical documentation for `microservice-users` in the Gateway + BFF architecture.
 
 ## Purpose
@@ -10,7 +12,7 @@ This local docs folder explains the concrete implementation surface of `microser
 - integration expectations toward BFF consumers
 - local operational workflow and private-docs validation behavior
 
-## Contents
+## Navigation
 
 - `architecture/README.md`: service-local architecture boundary and owned state.
 - `guides/README.md`: integration and contract guidance for consumers.
@@ -21,6 +23,11 @@ This local docs folder explains the concrete implementation surface of `microser
 1. Start with `architecture/README.md`.
 2. Continue with `guides/README.md` when changing consumer-facing behavior.
 3. Use `operations/README.md` for run and smoke-check expectations.
+
+## When to use this
+
+- when the central platform docs are too broad for a users-service change
+- when you need the repository-local navigation entry for architecture, guides, and operations
 
 ## CI/CD reference
 

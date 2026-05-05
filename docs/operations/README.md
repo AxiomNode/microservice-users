@@ -1,5 +1,7 @@
 # Operations
 
+Last updated: 2026-05-03.
+
 ## Scope
 
 This section groups repository-local operational notes for `microservice-users`.

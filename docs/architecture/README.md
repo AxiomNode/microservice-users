@@ -1,6 +1,12 @@
 # Architecture
 
-## Role In Current Platform Architecture
+Last updated: 2026-05-03.
+
+## Purpose
+
+This section documents the repository-local architecture of `microservice-users`.
+
+## Runtime position
 
 - Internal domain service for identity and gameplay analytics.
 - Consumed by `bff-mobile` and `bff-backoffice`.

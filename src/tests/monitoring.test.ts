@@ -21,6 +21,7 @@ function createConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     PRIVATE_DOCS_TOKEN: undefined,
     DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
     SUPERADMIN_FIREBASE_UID: undefined,
+    INSPECTOR_EMAILS: undefined,
     ...overrides,
   };
 }

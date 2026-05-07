@@ -33,6 +33,7 @@ function baseConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     FIREBASE_CREDENTIALS_JSON: undefined,
     FIREBASE_STRICT_AUTH: false,
     SUPERADMIN_FIREBASE_UID: undefined,
+    INSPECTOR_EMAILS: undefined,
     PRIVATE_DOCS_ENABLED: false,
     PRIVATE_DOCS_PREFIX: "/private/docs",
     PRIVATE_DOCS_TOKEN: undefined,

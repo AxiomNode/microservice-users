@@ -37,7 +37,9 @@ function baseConfig(): AppConfig {
     PRIVATE_DOCS_ENABLED: false,
     PRIVATE_DOCS_PREFIX: "/private/docs",
     PRIVATE_DOCS_TOKEN: undefined,
-    DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public"
+    DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
+    SUPERADMIN_FIREBASE_UID: undefined,
+    INSPECTOR_EMAILS: undefined
   };
 }
 
@@ -138,12 +140,12 @@ class FakeFirebaseAuthService {
 class FakeUserService {
   private created = true;
   private readonly storedEvents: Array<Record<string, unknown>> = [];
-  private currentRole: "SuperAdmin" | "Admin" | "Viewer" | "Gamer" = "Admin";
+  private currentRole: "SuperAdmin" | "Admin" | "Inspector" | "Viewer" | "Gamer" = "Admin";
   private listAssignmentsError: Error | null = null;
   private updateRoleError: Error | null = null;
   private failRoleLookup = false;
 
-  async getRoleByFirebaseUid(): Promise<"SuperAdmin" | "Admin" | "Viewer" | "Gamer"> {
+  async getRoleByFirebaseUid(): Promise<"SuperAdmin" | "Admin" | "Inspector" | "Viewer" | "Gamer"> {
     if (this.failRoleLookup) {
       throw new Error("role lookup failed");
     }
@@ -157,8 +159,8 @@ class FakeUserService {
   }
 
   async recordGameEvent(_firebaseUid: string, event: Record<string, unknown>): Promise<void> {
-    if (this.currentRole === "Viewer") {
-      throw new AccessDeniedError("Viewer cannot modify data.");
+    if (this.currentRole === "Viewer" || this.currentRole === "Inspector") {
+      throw new AccessDeniedError("Read-only roles cannot modify data.");
     }
     this.storedEvents.push(event);
   }
@@ -202,7 +204,7 @@ class FakeUserService {
     return this.storedEvents.length;
   }
 
-  setCurrentRole(role: "SuperAdmin" | "Admin" | "Viewer" | "Gamer") {
+  setCurrentRole(role: "SuperAdmin" | "Admin" | "Inspector" | "Viewer" | "Gamer") {
     this.currentRole = role;
   }
 
@@ -472,7 +474,7 @@ describe("users routes integration", () => {
     });
 
     userService.setCurrentRole("SuperAdmin");
-    userService.setListAssignmentsError(new AccessDeniedError("Only SuperAdmin can manage role assignments."));
+    userService.setListAssignmentsError(new AccessDeniedError("Only SuperAdmin or Inspector can view role assignments."));
     const deniedList = await app.inject({
       method: "GET",
       url: "/users/admin/roles",
@@ -484,6 +486,14 @@ describe("users routes integration", () => {
       url: "/users/admin/roles",
       headers: { authorization: "Bearer fake" },
     });
+
+    userService.setCurrentRole("Inspector");
+    const inspectorList = await app.inject({
+      method: "GET",
+      url: "/users/admin/roles",
+      headers: { authorization: "Bearer fake" },
+    });
+    userService.setCurrentRole("SuperAdmin");
 
     const invalidPatch = await app.inject({
       method: "PATCH",
@@ -525,6 +535,7 @@ describe("users routes integration", () => {
     expect(deniedList.statusCode).toBe(403);
     expect(okList.statusCode).toBe(200);
     expect(okList.json()).toMatchObject({ total: 1 });
+    expect(inspectorList.statusCode).toBe(200);
     expect(invalidPatch.statusCode).toBe(400);
     expect(deniedPatch.statusCode).toBe(403);
     expect(invalidRolePatch.statusCode).toBe(400);
@@ -580,7 +591,7 @@ describe("users routes integration", () => {
     });
 
     expect(response.statusCode).toBe(403);
-    expect(response.json()).toMatchObject({ message: "Forbidden. SuperAdmin required." });
+    expect(response.json()).toMatchObject({ message: "Forbidden. SuperAdmin or Inspector required." });
 
     await app.close();
   });

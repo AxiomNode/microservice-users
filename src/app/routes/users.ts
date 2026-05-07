@@ -47,7 +47,7 @@ const LeaderboardQuerySchema = BaseLeaderboardQuerySchema.extend({
 });
 
 const RoleUpdateSchema = z.object({
-  role: z.enum(["SuperAdmin", "Admin", "Viewer", "Gamer"]),
+  role: z.enum(["SuperAdmin", "Admin", "Inspector", "Viewer", "Gamer"]),
 });
 
 const RoleParamsSchema = z.object({
@@ -92,6 +92,18 @@ export async function usersRoutes(
     const req = request as AuthenticatedRequest;
     if (req.userRole !== UserRole.SuperAdmin) {
       reply.status(403).send({ message: "Forbidden. SuperAdmin required." });
+      return false;
+    }
+    return true;
+  }
+
+  function requireRoleAssignmentViewer(
+    request: FastifyRequest,
+    reply: { status: (code: number) => { send: (payload: unknown) => unknown } },
+  ): boolean {
+    const req = request as AuthenticatedRequest;
+    if (req.userRole !== UserRole.SuperAdmin && req.userRole !== UserRole.Inspector) {
+      reply.status(403).send({ message: "Forbidden. SuperAdmin or Inspector required." });
       return false;
     }
     return true;
@@ -221,7 +233,7 @@ export async function usersRoutes(
       return reply.status(401).send({ message: "Unauthorized" });
     }
 
-    if (!requireSuperAdmin(request, reply)) {
+    if (!requireRoleAssignmentViewer(request, reply)) {
       return;
     }
 

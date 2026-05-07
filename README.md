@@ -1,6 +1,6 @@
 # microservice-users
 
-Last updated: 2026-05-03.
+Last updated: 2026-05-08.
 
 [![codecov](https://codecov.io/gh/AxiomNode/microservice-users/branch/main/graph/badge.svg)](https://codecov.io/gh/AxiomNode/microservice-users)
 
@@ -72,6 +72,22 @@ Primary application consumers:
 - When Firebase is not configured, bearer tokens are rejected; relaxed mode only enables the explicit dev header fallback.
 
 In strict mode, Firebase credentials are mandatory at startup.
+
+### Role model
+
+`microservice-users` owns the canonical user role enum:
+
+- `SuperAdmin`: configured by `SUPERADMIN_FIREBASE_UID`; only this role can modify user permissions.
+- `Admin`: operator role for controlled Backoffice actions.
+- `Inspector`: read-only inspection role assigned by matching `INSPECTOR_EMAILS`; intended for reviewer access such as `mouredev@gmail.com`.
+- `Viewer`: read-only Backoffice role.
+- `Gamer`: gameplay role without Backoffice access.
+
+Role assignment notes:
+
+- `INSPECTOR_EMAILS` is a comma-separated list of emails normalized to lowercase.
+- If a Firebase session email matches `INSPECTOR_EMAILS`, the user is assigned `Inspector` on session sync.
+- Role listing is allowed to `SuperAdmin` and `Inspector`; role mutation remains restricted to `SuperAdmin`.
 
 ## Documentation
 

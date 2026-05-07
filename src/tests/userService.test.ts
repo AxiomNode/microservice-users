@@ -42,6 +42,7 @@ function createConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     PRIVATE_DOCS_TOKEN: undefined,
     DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
     SUPERADMIN_FIREBASE_UID: undefined,
+    INSPECTOR_EMAILS: undefined,
     ...overrides,
   };
 }
@@ -132,6 +133,35 @@ describe("UserService", () => {
     );
   });
 
+  it("assigns inspector role to configured inspector emails", async () => {
+    prismaMock.userProfile.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "usr-inspector", role: UserRole.Gamer });
+    prismaMock.userProfile.create.mockResolvedValue({ id: "usr-new-inspector" });
+    prismaMock.userProfile.update.mockResolvedValue({ id: "usr-inspector" });
+
+    const service = new UserService(createConfig({ INSPECTOR_EMAILS: "mouredev@gmail.com, other@example.com" }));
+
+    await expect(
+      service.upsertUserFromIdentity(createIdentity({ firebaseUid: "uid-inspector", email: "MOUREDEV@gmail.com" })),
+    ).resolves.toEqual({ userId: "usr-new-inspector", created: true });
+    await expect(
+      service.upsertUserFromIdentity(createIdentity({ firebaseUid: "uid-existing", email: "mouredev@gmail.com" })),
+    ).resolves.toEqual({ userId: "usr-inspector", created: false });
+
+    expect(prismaMock.userProfile.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ role: UserRole.Inspector }),
+      }),
+    );
+    expect(prismaMock.userProfile.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "usr-inspector" },
+        data: expect.objectContaining({ role: UserRole.Inspector }),
+      }),
+    );
+  });
+
   it("returns leaderboards using the correct ordering and clamps the limit", async () => {
     prismaMock.userProfile.findMany.mockResolvedValue([]);
 
@@ -164,15 +194,19 @@ describe("UserService", () => {
     );
   });
 
-  it("lists role assignments only for superadmins", async () => {
+  it("lists role assignments for superadmins and inspectors", async () => {
     prismaMock.userProfile.findUnique
       .mockResolvedValueOnce({ role: UserRole.SuperAdmin })
+      .mockResolvedValueOnce({ role: UserRole.Inspector })
       .mockResolvedValueOnce({ role: UserRole.Gamer });
     prismaMock.userProfile.findMany.mockResolvedValue([{ firebaseUid: "uid-1", role: UserRole.Admin }]);
 
     const service = new UserService(createConfig());
 
     await expect(service.listRoleAssignments("uid-super")).resolves.toEqual([
+      { firebaseUid: "uid-1", role: UserRole.Admin },
+    ]);
+    await expect(service.listRoleAssignments("uid-inspector")).resolves.toEqual([
       { firebaseUid: "uid-1", role: UserRole.Admin },
     ]);
     await expect(service.listRoleAssignments("uid-gamer")).rejects.toThrow(AccessDeniedError);
@@ -193,7 +227,7 @@ describe("UserService", () => {
       firebaseUid: "uid-3",
       displayName: "User 3",
       email: "u3@test.dev",
-      role: UserRole.Admin,
+      role: UserRole.Inspector,
       updatedAt: new Date("2026-04-22T00:00:00.000Z"),
     });
 
@@ -214,18 +248,19 @@ describe("UserService", () => {
     await expect(service.updateUserRoleByFirebaseUid("uid-super", "uid-2", "SuperAdmin")).rejects.toThrow(
       AccessDeniedError,
     );
-    await expect(service.updateUserRoleByFirebaseUid("uid-super", "uid-3", "Admin")).resolves.toEqual(
+    await expect(service.updateUserRoleByFirebaseUid("uid-super", "uid-3", "Inspector")).resolves.toEqual(
       expect.objectContaining({
         firebaseUid: "uid-3",
-        role: UserRole.Admin,
+        role: UserRole.Inspector,
       }),
     );
   });
 
-  it("records game events, rejects missing users, and blocks viewers", async () => {
+  it("records game events, rejects missing users, and blocks read-only roles", async () => {
     prismaMock.userProfile.findUnique
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: "usr-viewer", role: UserRole.Viewer })
+      .mockResolvedValueOnce({ id: "usr-inspector", role: UserRole.Inspector })
       .mockResolvedValueOnce({ id: "usr-gamer", role: UserRole.Gamer });
 
     const txMock = {
@@ -251,6 +286,13 @@ describe("UserService", () => {
     ).rejects.toThrow("User not found. Sync Firebase session first.");
     await expect(
       service.recordGameEvent("uid-viewer", {
+        gameType: "quiz",
+        language: "ES",
+        outcome: "won",
+      }),
+    ).rejects.toThrow(AccessDeniedError);
+    await expect(
+      service.recordGameEvent("uid-inspector", {
         gameType: "quiz",
         language: "ES",
         outcome: "won",

@@ -135,6 +135,7 @@ enum GameOutcome {
 enum UserRole {
   SuperAdmin
   Admin
+  Inspector
   Viewer
   Gamer
 }

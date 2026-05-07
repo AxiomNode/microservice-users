@@ -23,6 +23,8 @@ function baseConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     PRIVATE_DOCS_PREFIX: "/private/docs",
     PRIVATE_DOCS_TOKEN: "users_private_docs_token",
     DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
+    SUPERADMIN_FIREBASE_UID: undefined,
+    INSPECTOR_EMAILS: undefined,
     ...overrides
   };
 }

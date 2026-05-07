@@ -89,19 +89,41 @@ export interface UserStatsSnapshot {
   }>;
 }
 
+const READ_ONLY_ROLES = new Set<UserRole>([UserRole.Inspector, UserRole.Viewer]);
+
 /** Manages user profiles, game event recording, stats retrieval, and role assignments. */
 export class UserService {
   constructor(private readonly config: AppConfig) {}
 
-  private resolveInitialRole(firebaseUid: string): UserRole {
+  private configuredInspectorEmails(): Set<string> {
+    return new Set(
+      (this.config.INSPECTOR_EMAILS ?? "")
+        .split(",")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean),
+    );
+  }
+
+  private isInspectorIdentity(identity: FirebaseIdentity): boolean {
+    if (!identity.email) {
+      return false;
+    }
+    return this.configuredInspectorEmails().has(identity.email.trim().toLowerCase());
+  }
+
+  private resolveInitialRole(identity: FirebaseIdentity): UserRole {
+    const firebaseUid = identity.firebaseUid;
     if (this.config.SUPERADMIN_FIREBASE_UID && firebaseUid === this.config.SUPERADMIN_FIREBASE_UID) {
       return UserRole.SuperAdmin;
+    }
+    if (this.isInspectorIdentity(identity)) {
+      return UserRole.Inspector;
     }
     return UserRole.Gamer;
   }
 
   private normalizeManagedRole(role: string): UserRole {
-    if (role === "SuperAdmin" || role === "Admin" || role === "Viewer" || role === "Gamer") {
+    if (role === "SuperAdmin" || role === "Admin" || role === "Inspector" || role === "Viewer" || role === "Gamer") {
       return role;
     }
     throw new RoleValidationError("Unsupported role");
@@ -131,7 +153,7 @@ export class UserService {
         data: {
           firebaseUid: identity.firebaseUid,
           firebaseProvider: identity.provider,
-          role: this.resolveInitialRole(identity.firebaseUid),
+          role: this.resolveInitialRole(identity),
           email: identity.email,
           emailVerified: identity.emailVerified,
           displayName: identity.displayName,
@@ -150,6 +172,8 @@ export class UserService {
         role:
           this.config.SUPERADMIN_FIREBASE_UID && identity.firebaseUid === this.config.SUPERADMIN_FIREBASE_UID
             ? UserRole.SuperAdmin
+            : this.isInspectorIdentity(identity)
+              ? UserRole.Inspector
             : existing.role,
         email: identity.email,
         emailVerified: identity.emailVerified,
@@ -172,8 +196,8 @@ export class UserService {
       throw new Error("User not found. Sync Firebase session first.");
     }
 
-    if (user.role === UserRole.Viewer) {
-      throw new AccessDeniedError("Viewer cannot modify data.");
+    if (READ_ONLY_ROLES.has(user.role)) {
+      throw new AccessDeniedError("Read-only roles cannot modify data.");
     }
 
     const outcome = input.outcome as GameOutcome;
@@ -422,8 +446,8 @@ export class UserService {
 
   async listRoleAssignments(requesterFirebaseUid: string) {
     const requesterRole = await this.getRoleByFirebaseUid(requesterFirebaseUid);
-    if (requesterRole !== UserRole.SuperAdmin) {
-      throw new AccessDeniedError("Only SuperAdmin can manage role assignments.");
+    if (requesterRole !== UserRole.SuperAdmin && requesterRole !== UserRole.Inspector) {
+      throw new AccessDeniedError("Only SuperAdmin or Inspector can view role assignments.");
     }
 
     return prisma.userProfile.findMany({

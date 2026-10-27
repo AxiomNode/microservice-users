@@ -21,12 +21,12 @@
     "@axiomnode/shared-sdk-client": "file:../../shared-sdk-client/typescript",
     "@fastify/cors": "^11.2.0",
     "@fastify/swagger": "^9.7.0",
-    "@fastify/swagger-ui": "^5.2.5",
+    "@fastify/swagger-ui": "^6.1.2",
     "@prisma/client": "^5.22.0",
     "dotenv": "^16.4.7",
     "fastify": "^5.8.2",
     "firebase-admin": "^13.7.0",
-    "zod": "^3.23.8"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

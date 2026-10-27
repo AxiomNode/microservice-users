@@ -34,7 +34,7 @@ const GameEventSchema = z.object({
   outcome: z.enum(["won", "lost", "draw"]),
   score: z.number().int().min(0).max(100000).optional(),
   durationSeconds: z.number().int().min(0).max(86400).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 const StatsQuerySchema = z.object({

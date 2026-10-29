@@ -133,3 +133,29 @@ describe("loadConfig", () => {
     expect(config.PRIVATE_DOCS_TOKEN).toBeUndefined();
   });
 });
+
+describe("loadConfig boolean parsing", () => {
+  const base = {
+    NODE_ENV: "test",
+    DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
+    FIREBASE_CREDENTIALS_JSON: "",
+    FIREBASE_PROJECT_ID: "",
+    FIREBASE_CLIENT_EMAIL: "",
+    FIREBASE_PRIVATE_KEY: ""
+  };
+
+  it.each(["true", "1", "yes", "on", " ON "])("treats %j as true", (value) => {
+    withEnv({ ...base, PRIVATE_DOCS_ENABLED: value, PRIVATE_DOCS_TOKEN: "t", FIREBASE_STRICT_AUTH: "false" });
+    expect(loadConfig().PRIVATE_DOCS_ENABLED).toBe(true);
+  });
+
+  it.each(["false", "0", "no", "off"])("treats %j as false", (value) => {
+    withEnv({ ...base, PRIVATE_DOCS_ENABLED: value, FIREBASE_STRICT_AUTH: "false" });
+    expect(loadConfig().PRIVATE_DOCS_ENABLED).toBe(false);
+  });
+
+  it("rejects values that are not recognised booleans", () => {
+    withEnv({ ...base, PRIVATE_DOCS_ENABLED: "maybe", FIREBASE_STRICT_AUTH: "false" });
+    expect(() => loadConfig()).toThrow("Invalid environment configuration");
+  });
+});

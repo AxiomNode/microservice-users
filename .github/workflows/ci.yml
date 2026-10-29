@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Detect runtime-relevant changes
         id: dispatch_scope
@@ -110,10 +110,16 @@ jobs:
 
           BASE_SHA="${{ github.event.before }}"
           HEAD_SHA="${{ github.sha }}"
-          if [[ -n "${BASE_SHA}" && "${BASE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+          # BASE_SHA may be all zeros (first push), or missing from the clone when
+          # history was rewritten / force-pushed; fall back to HEAD~1, then to
+          # "everything changed" so the step never fails with "bad object".
+          if [[ -n "${BASE_SHA}" && "${BASE_SHA}" != "0000000000000000000000000000000000000000" ]] \
+             && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
             CHANGED=$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")
+          elif git rev-parse --verify --quiet "${HEAD_SHA}~1^{commit}" >/dev/null; then
+            CHANGED=$(git diff --name-only "${HEAD_SHA}~1" "${HEAD_SHA}")
           else
-            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD)
+            CHANGED=$(git ls-files)
           fi
 
           NON_DOC=$(printf '%s\n' "${CHANGED}" | grep -Ev '^(docs/|\.github/|README\.md$|AGENTS\.md$|LICENSE$|CONTRIBUTING\.md$)|\.md$' || true)

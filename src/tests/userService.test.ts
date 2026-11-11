@@ -140,13 +140,13 @@ describe("UserService", () => {
     prismaMock.userProfile.create.mockResolvedValue({ id: "usr-new-inspector" });
     prismaMock.userProfile.update.mockResolvedValue({ id: "usr-inspector" });
 
-    const service = new UserService(createConfig({ INSPECTOR_EMAILS: "mouredev@gmail.com, other@example.com" }));
+    const service = new UserService(createConfig({ INSPECTOR_EMAILS: "inspector@example.com, other@example.com" }));
 
     await expect(
-      service.upsertUserFromIdentity(createIdentity({ firebaseUid: "uid-inspector", email: "MOUREDEV@gmail.com" })),
+      service.upsertUserFromIdentity(createIdentity({ firebaseUid: "uid-inspector", email: "INSPECTOR@example.com" })),
     ).resolves.toEqual({ userId: "usr-new-inspector", created: true });
     await expect(
-      service.upsertUserFromIdentity(createIdentity({ firebaseUid: "uid-existing", email: "mouredev@gmail.com" })),
+      service.upsertUserFromIdentity(createIdentity({ firebaseUid: "uid-existing", email: "inspector@example.com" })),
     ).resolves.toEqual({ userId: "usr-inspector", created: false });
 
     expect(prismaMock.userProfile.create).toHaveBeenCalledWith(

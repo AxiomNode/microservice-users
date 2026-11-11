@@ -13,6 +13,8 @@ import { randomUUID } from "node:crypto";
 import { loadConfig } from "./config.js";
 import { prisma } from "./db/client.js";
 import { registerPrivateDocs } from "./plugins/privateDocs.js";
+import { DEFAULT_RATE_LIMIT_MAX, DEFAULT_RATE_LIMIT_WINDOW_MS } from "./plugins/rateLimit.js";
+import { parseTrustProxy } from "./plugins/trustProxy.js";
 import { healthRoutes } from "./routes/health.js";
 import { monitoringRoutes } from "./routes/monitoring.js";
 import { usersRoutes } from "./routes/users.js";
@@ -23,7 +25,7 @@ import { UserService } from "./services/userService.js";
 /** Creates and configures the Fastify application with all plugins and routes. */
 async function buildServer() {
   const config = loadConfig();
-  const app = Fastify({ logger: true });
+  const app = Fastify({ logger: true, trustProxy: parseTrustProxy(config.TRUST_PROXY) });
   const metrics = new ServiceMetrics(config);
 
   await app.register(cors, { origin: true });
@@ -97,7 +99,10 @@ async function buildServer() {
   });
 
   await healthRoutes(app);
-  await usersRoutes(app, firebaseAuthService, userService, metrics);
+  await usersRoutes(app, firebaseAuthService, userService, metrics, {
+    max: config.RATE_LIMIT_MAX ?? DEFAULT_RATE_LIMIT_MAX,
+    windowMs: config.RATE_LIMIT_WINDOW_MS ?? DEFAULT_RATE_LIMIT_WINDOW_MS
+  });
   await monitoringRoutes(app, metrics);
 
   app.addHook("onClose", async () => {

@@ -73,13 +73,17 @@ Primary application consumers:
 
 In strict mode, Firebase credentials are mandatory at startup.
 
+### Client IP and rate limiting
+
+Set `TRUST_PROXY` (default `false`; `true`/`false`, a hop count such as `1`, or a comma-separated IP/CIDR list) so `request.ip` reflects the real caller. `/users/*` routes are limited in memory per client IP by `RATE_LIMIT_MAX` (default `1000`, `0` disables) and `RATE_LIMIT_WINDOW_MS` (default `60000`). Callers are the BFFs, so the default is generous; see `docs/operations/README.md`.
+
 ### Role model
 
 `microservice-users` owns the canonical user role enum:
 
 - `SuperAdmin`: configured by `SUPERADMIN_FIREBASE_UID`; only this role can modify user permissions.
 - `Admin`: operator role for controlled Backoffice actions.
-- `Inspector`: read-only inspection role assigned by matching `INSPECTOR_EMAILS`; intended for reviewer access such as `mouredev@gmail.com`.
+- `Inspector`: read-only inspection role assigned by matching `INSPECTOR_EMAILS`; intended for reviewer access such as `inspector@example.com`.
 - `Viewer`: read-only Backoffice role.
 - `Gamer`: gameplay role without Backoffice access.
 

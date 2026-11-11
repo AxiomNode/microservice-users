@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest";
 
+import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 
-import { createRateLimiter, RateLimitOptions } from "../app/plugins/rateLimit.js";
+import {
+  buildRateLimitErrorBody,
+  DEFAULT_RATE_LIMIT_MAX,
+  DEFAULT_RATE_LIMIT_WINDOW_MS,
+  rateLimitOptions,
+} from "../app/plugins/rateLimit.js";
 import { parseTrustProxy } from "../app/plugins/trustProxy.js";
 
-async function buildApp(options: RateLimitOptions, trustProxy = "false") {
+async function buildApp(max: number, windowMs: number, trustProxy = "false") {
   const app = Fastify({ trustProxy: parseTrustProxy(trustProxy) });
-  app.get("/limited", { onRequest: createRateLimiter(options) }, async () => ({ ok: true }));
   app.get("/open", async () => ({ ok: true }));
+  await app.register(rateLimit, rateLimitOptions(max, windowMs));
+  app.get("/limited", async () => ({ ok: true }));
   return app;
 }
 
@@ -16,9 +23,25 @@ function hit(app: Awaited<ReturnType<typeof buildApp>>, remoteAddress: string, h
   return app.inject({ method: "GET", url: "/limited", remoteAddress, headers });
 }
 
-describe("createRateLimiter", () => {
+describe("rate limit options", () => {
+  it("documents the defaults", () => {
+    expect(DEFAULT_RATE_LIMIT_MAX).toBe(1000);
+    expect(DEFAULT_RATE_LIMIT_WINDOW_MS).toBe(60_000);
+  });
+
+  it("builds a 429 body with a retry hint of at least one second", () => {
+    expect(buildRateLimitErrorBody({}, { after: "1 minute", ttl: 60_000 })).toEqual({
+      statusCode: 429,
+      message: "Too many requests",
+      retryAfterSeconds: 60,
+    });
+    expect(buildRateLimitErrorBody({}, { after: "1 second", ttl: 100 }).retryAfterSeconds).toBe(1);
+  });
+});
+
+describe("@fastify/rate-limit with the shared options", () => {
   it("allows up to max requests then answers 429 with retry headers", async () => {
-    const app = await buildApp({ max: 2, windowMs: 60_000, now: () => 1_000 });
+    const app = await buildApp(2, 60_000);
 
     const first = await hit(app, "10.0.0.1");
     expect(first.statusCode).toBe(200);
@@ -31,14 +54,18 @@ describe("createRateLimiter", () => {
 
     const third = await hit(app, "10.0.0.1");
     expect(third.statusCode).toBe(429);
-    expect(third.headers["retry-after"]).toBe("60");
+    expect(Number(third.headers["retry-after"])).toBeGreaterThan(0);
     expect(third.headers["x-ratelimit-remaining"]).toBe("0");
-    expect(third.json()).toEqual({ message: "Too many requests", retryAfterSeconds: 60 });
+    expect(third.json()).toEqual({
+      statusCode: 429,
+      message: "Too many requests",
+      retryAfterSeconds: Number(third.headers["retry-after"]),
+    });
     await app.close();
   });
 
   it("keeps separate budgets per client IP", async () => {
-    const app = await buildApp({ max: 1, windowMs: 60_000, now: () => 1_000 });
+    const app = await buildApp(1, 60_000);
 
     expect((await hit(app, "10.0.0.1")).statusCode).toBe(200);
     expect((await hit(app, "10.0.0.1")).statusCode).toBe(429);
@@ -47,33 +74,17 @@ describe("createRateLimiter", () => {
   });
 
   it("resets the budget once the window has elapsed", async () => {
-    let clock = 1_000;
-    const app = await buildApp({ max: 1, windowMs: 10_000, now: () => clock });
+    const app = await buildApp(1, 100);
 
     expect((await hit(app, "10.0.0.1")).statusCode).toBe(200);
-    clock += 4_500;
-    const blocked = await hit(app, "10.0.0.1");
-    expect(blocked.statusCode).toBe(429);
-    expect(blocked.headers["retry-after"]).toBe("6");
-
-    clock += 6_000;
+    expect((await hit(app, "10.0.0.1")).statusCode).toBe(429);
+    await new Promise((resolve) => setTimeout(resolve, 250));
     expect((await hit(app, "10.0.0.1")).statusCode).toBe(200);
     await app.close();
   });
 
-  it("does nothing when max is 0", async () => {
-    const app = await buildApp({ max: 0, windowMs: 60_000 });
-
-    for (let i = 0; i < 5; i += 1) {
-      const response = await hit(app, "10.0.0.1");
-      expect(response.statusCode).toBe(200);
-      expect(response.headers["x-ratelimit-limit"]).toBeUndefined();
-    }
-    await app.close();
-  });
-
-  it("leaves routes without the limiter untouched", async () => {
-    const app = await buildApp({ max: 1, windowMs: 60_000, now: () => 1_000 });
+  it("leaves routes defined before the registration untouched", async () => {
+    const app = await buildApp(1, 60_000);
 
     await hit(app, "10.0.0.1");
     await hit(app, "10.0.0.1");
@@ -84,23 +95,8 @@ describe("createRateLimiter", () => {
     await app.close();
   });
 
-  it("evicts the oldest clients beyond maxTrackedClients and drops expired ones", async () => {
-    let clock = 1_000;
-    const app = await buildApp({ max: 1, windowMs: 10_000, maxTrackedClients: 2, now: () => clock });
-
-    expect((await hit(app, "10.0.0.1")).statusCode).toBe(200);
-    expect((await hit(app, "10.0.0.2")).statusCode).toBe(200);
-    // Third client evicts the oldest (10.0.0.1), which therefore gets a fresh budget.
-    expect((await hit(app, "10.0.0.3")).statusCode).toBe(200);
-    expect((await hit(app, "10.0.0.1")).statusCode).toBe(200);
-
-    clock += 20_000;
-    expect((await hit(app, "10.0.0.3")).statusCode).toBe(200);
-    await app.close();
-  });
-
   it("shares one bucket behind a proxy when TRUST_PROXY is false", async () => {
-    const app = await buildApp({ max: 1, windowMs: 60_000, now: () => 1_000 }, "false");
+    const app = await buildApp(1, 60_000, "false");
 
     expect((await hit(app, "10.9.9.9", { "x-forwarded-for": "203.0.113.1" })).statusCode).toBe(200);
     expect((await hit(app, "10.9.9.9", { "x-forwarded-for": "203.0.113.2" })).statusCode).toBe(429);
@@ -108,7 +104,7 @@ describe("createRateLimiter", () => {
   });
 
   it("separates clients behind a trusted proxy and ignores spoofing from untrusted peers", async () => {
-    const app = await buildApp({ max: 1, windowMs: 60_000, now: () => 1_000 }, "10.0.0.0/8");
+    const app = await buildApp(1, 60_000, "10.0.0.0/8");
 
     expect((await hit(app, "10.9.9.9", { "x-forwarded-for": "203.0.113.1" })).statusCode).toBe(200);
     expect((await hit(app, "10.9.9.9", { "x-forwarded-for": "203.0.113.2" })).statusCode).toBe(200);

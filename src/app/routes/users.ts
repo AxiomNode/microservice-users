@@ -4,7 +4,13 @@ import { z } from "zod";
 import { LeaderboardQuerySchema as BaseLeaderboardQuerySchema } from "@axiomnode/shared-sdk-client";
 
 import { FirebaseAuthService, FirebaseIdentity } from "../services/firebaseAuthService.js";
-import { createRateLimiter, RateLimitOptions, DEFAULT_RATE_LIMIT_MAX, DEFAULT_RATE_LIMIT_WINDOW_MS } from "../plugins/rateLimit.js";
+import rateLimitPlugin from "@fastify/rate-limit";
+import {
+  DEFAULT_RATE_LIMIT_MAX,
+  DEFAULT_RATE_LIMIT_WINDOW_MS,
+  rateLimitOptions,
+  RateLimitSettings,
+} from "../plugins/rateLimit.js";
 import { ServiceMetrics } from "../services/serviceMetrics.js";
 import {
   AccessDeniedError,
@@ -61,10 +67,11 @@ export async function usersRoutes(
   firebaseAuth: FirebaseAuthService,
   userService: UserService,
   metrics: ServiceMetrics,
-  rateLimit: RateLimitOptions = { max: DEFAULT_RATE_LIMIT_MAX, windowMs: DEFAULT_RATE_LIMIT_WINDOW_MS },
+  rateLimit: RateLimitSettings = { max: DEFAULT_RATE_LIMIT_MAX, windowMs: DEFAULT_RATE_LIMIT_WINDOW_MS },
 ): Promise<void> {
-  const limiter = createRateLimiter(rateLimit);
-  const limited = { onRequest: limiter };
+  if (rateLimit.max > 0) {
+    await app.register(rateLimitPlugin, rateLimitOptions(rateLimit.max, rateLimit.windowMs));
+  }
 
   async function requireAuth(
     request: FastifyRequest,
@@ -114,7 +121,7 @@ export async function usersRoutes(
     return true;
   }
 
-  app.post("/users/firebase/session", limited, async (request, reply) => {
+  app.post("/users/firebase/session", async (request, reply) => {
     const parsedBody = SyncSessionSchema.safeParse(request.body ?? {});
     if (!parsedBody.success) {
       return reply.status(400).send({
@@ -152,7 +159,7 @@ export async function usersRoutes(
     }
   });
 
-  app.get("/users/me/profile", { onRequest: limiter, preHandler: requireAuth }, async (request, reply) => {
+  app.get("/users/me/profile", { preHandler: requireAuth }, async (request, reply) => {
     const req = request as AuthenticatedRequest;
     const identity = req.userIdentity;
     /* v8 ignore next -- requireAuth either populates identity or already returns 401 */
@@ -176,7 +183,7 @@ export async function usersRoutes(
     });
   });
 
-  app.get("/users/me/stats", { onRequest: limiter, preHandler: requireAuth }, async (request, reply) => {
+  app.get("/users/me/stats", { preHandler: requireAuth }, async (request, reply) => {
     const req = request as AuthenticatedRequest;
     const identity = req.userIdentity;
     /* v8 ignore next -- requireAuth either populates identity or already returns 401 */
@@ -196,7 +203,7 @@ export async function usersRoutes(
     return reply.send(stats);
   });
 
-  app.post("/users/me/games/events", { onRequest: limiter, preHandler: requireAuth }, async (request, reply) => {
+  app.post("/users/me/games/events", { preHandler: requireAuth }, async (request, reply) => {
     const req = request as AuthenticatedRequest;
     const identity = req.userIdentity;
     /* v8 ignore next -- requireAuth either populates identity or already returns 401 */
@@ -230,7 +237,7 @@ export async function usersRoutes(
     return reply.status(201).send({ message: "Game event stored" });
   });
 
-  app.get("/users/admin/roles", { onRequest: limiter, preHandler: requireAuth }, async (request, reply) => {
+  app.get("/users/admin/roles", { preHandler: requireAuth }, async (request, reply) => {
     const req = request as AuthenticatedRequest;
     const identity = req.userIdentity;
     /* v8 ignore next -- requireAuth either populates identity or already returns 401 */
@@ -256,7 +263,7 @@ export async function usersRoutes(
     }
   });
 
-  app.patch("/users/admin/roles/:firebaseUid", { onRequest: limiter, preHandler: requireAuth }, async (request, reply) => {
+  app.patch("/users/admin/roles/:firebaseUid", { preHandler: requireAuth }, async (request, reply) => {
     const req = request as AuthenticatedRequest;
     const identity = req.userIdentity;
     /* v8 ignore next -- requireAuth either populates identity or already returns 401 */
@@ -303,7 +310,7 @@ export async function usersRoutes(
     }
   });
 
-  app.get("/users/leaderboard", limited, async (request, reply) => {
+  app.get("/users/leaderboard", async (request, reply) => {
     const query = LeaderboardQuerySchema.safeParse(request.query ?? {});
     if (!query.success) {
       return reply.status(400).send({

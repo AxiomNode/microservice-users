@@ -99,9 +99,12 @@ async function buildServer() {
   });
 
   await healthRoutes(app);
-  await usersRoutes(app, firebaseAuthService, userService, metrics, {
-    max: config.RATE_LIMIT_MAX ?? DEFAULT_RATE_LIMIT_MAX,
-    windowMs: config.RATE_LIMIT_WINDOW_MS ?? DEFAULT_RATE_LIMIT_WINDOW_MS
+  // Encapsulated so the rate limiter only covers the users routes, not health or monitoring.
+  await app.register(async (usersScope) => {
+    await usersRoutes(usersScope, firebaseAuthService, userService, metrics, {
+      max: config.RATE_LIMIT_MAX ?? DEFAULT_RATE_LIMIT_MAX,
+      windowMs: config.RATE_LIMIT_WINDOW_MS ?? DEFAULT_RATE_LIMIT_WINDOW_MS,
+    });
   });
   await monitoringRoutes(app, metrics);
 

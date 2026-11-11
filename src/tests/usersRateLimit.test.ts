@@ -46,7 +46,10 @@ const ROUTES: Array<{ method: "GET" | "POST" | "PATCH"; url: string }> = [
 
 async function buildApp(rateLimit?: { max: number; windowMs: number }, trustProxy: string | boolean = false) {
   const app = Fastify({ trustProxy });
-  await usersRoutes(app, failingAuth, unusedUserService, new ServiceMetrics(config), rateLimit);
+  // Same wiring as server.ts: the limiter is encapsulated with the users routes.
+  await app.register(async (usersScope) => {
+    await usersRoutes(usersScope, failingAuth, unusedUserService, new ServiceMetrics(config), rateLimit);
+  });
   return app;
 }
 

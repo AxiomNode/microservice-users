@@ -159,3 +159,33 @@ describe("loadConfig boolean parsing", () => {
     expect(() => loadConfig()).toThrow("Invalid environment configuration");
   });
 });
+
+describe("loadConfig proxy and rate limit settings", () => {
+  const base = {
+    DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
+    FIREBASE_STRICT_AUTH: "false",
+    PRIVATE_DOCS_ENABLED: "false",
+  };
+
+  it("defaults to no proxy trust and the documented rate limit", () => {
+    withEnv({ ...base, TRUST_PROXY: undefined, RATE_LIMIT_MAX: undefined, RATE_LIMIT_WINDOW_MS: undefined });
+
+    expect(loadConfig()).toMatchObject({ TRUST_PROXY: "false", RATE_LIMIT_MAX: 1000, RATE_LIMIT_WINDOW_MS: 60000 });
+  });
+
+  it("accepts overrides", () => {
+    withEnv({ ...base, TRUST_PROXY: "10.0.0.0/8,loopback", RATE_LIMIT_MAX: "0", RATE_LIMIT_WINDOW_MS: "5000" });
+
+    expect(loadConfig()).toMatchObject({ TRUST_PROXY: "10.0.0.0/8,loopback", RATE_LIMIT_MAX: 0, RATE_LIMIT_WINDOW_MS: 5000 });
+  });
+
+  it.each([
+    ["TRUST_PROXY", "not-an-ip"],
+    ["RATE_LIMIT_MAX", "-1"],
+    ["RATE_LIMIT_WINDOW_MS", "10"],
+  ])("rejects invalid %s=%s", (key, value) => {
+    withEnv({ ...base, [key]: value });
+
+    expect(() => loadConfig()).toThrow("Invalid environment configuration for microservice-users");
+  });
+});

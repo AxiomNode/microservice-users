@@ -4,6 +4,13 @@ import { z } from "zod";
 import { LeaderboardQuerySchema as BaseLeaderboardQuerySchema } from "@axiomnode/shared-sdk-client";
 
 import { FirebaseAuthService, FirebaseIdentity } from "../services/firebaseAuthService.js";
+import rateLimitPlugin from "@fastify/rate-limit";
+import {
+  DEFAULT_RATE_LIMIT_MAX,
+  DEFAULT_RATE_LIMIT_WINDOW_MS,
+  rateLimitOptions,
+  RateLimitSettings,
+} from "../plugins/rateLimit.js";
 import { ServiceMetrics } from "../services/serviceMetrics.js";
 import {
   AccessDeniedError,
@@ -60,7 +67,12 @@ export async function usersRoutes(
   firebaseAuth: FirebaseAuthService,
   userService: UserService,
   metrics: ServiceMetrics,
+  rateLimit: RateLimitSettings = { max: DEFAULT_RATE_LIMIT_MAX, windowMs: DEFAULT_RATE_LIMIT_WINDOW_MS },
 ): Promise<void> {
+  if (rateLimit.max > 0) {
+    await app.register(rateLimitPlugin, rateLimitOptions(rateLimit.max, rateLimit.windowMs));
+  }
+
   async function requireAuth(
     request: FastifyRequest,
     reply: { status: (code: number) => { send: (payload: unknown) => unknown } },

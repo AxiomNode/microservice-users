@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+import { DEFAULT_RATE_LIMIT_MAX, DEFAULT_RATE_LIMIT_WINDOW_MS } from "./plugins/rateLimit.js";
+import { parseTrustProxy } from "./plugins/trustProxy.js";
+
+function isValidTrustProxy(value: string): boolean {
+  try {
+    parseTrustProxy(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * @module config
  * Environment configuration schema and loader for microservice-users.
@@ -39,6 +51,11 @@ const ConfigSchema = z
     PRIVATE_DOCS_ENABLED: EnvBoolean.default(true),
     PRIVATE_DOCS_PREFIX: z.string().default("/private/docs"),
     PRIVATE_DOCS_TOKEN: OptionalEnvString,
+    TRUST_PROXY: z.string().default("false").refine(isValidTrustProxy, {
+      message: "TRUST_PROXY must be true/false, a hop count, or a comma-separated list of IPs/CIDRs"
+    }),
+    RATE_LIMIT_MAX: z.coerce.number().int().min(0).max(1_000_000).default(DEFAULT_RATE_LIMIT_MAX),
+    RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3_600_000).default(DEFAULT_RATE_LIMIT_WINDOW_MS),
     DATABASE_URL: z.string().min(1)
   })
   .superRefine((config, ctx) => {
@@ -96,7 +113,11 @@ const ConfigSchema = z
   });
 
 /** Typed configuration object inferred from the environment schema. */
-export type AppConfig = z.infer<typeof ConfigSchema>;
+export type AppConfig = Omit<z.infer<typeof ConfigSchema>, "TRUST_PROXY" | "RATE_LIMIT_MAX" | "RATE_LIMIT_WINDOW_MS"> & {
+  TRUST_PROXY?: string;
+  RATE_LIMIT_MAX?: number;
+  RATE_LIMIT_WINDOW_MS?: number;
+};
 
 /** Parses and validates environment variables into an AppConfig. Throws on invalid config. */
 export function loadConfig(): AppConfig {

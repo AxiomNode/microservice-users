@@ -182,9 +182,14 @@ export async function usersRoutes(
       return reply.status(401).send({ message: "Unauthorized" });
     }
 
-    const sync = await userService.upsertUserFromIdentity(identity);
-    metrics.recordUserSynced(sync.created);
-    const role = await userService.getRoleByFirebaseUid(identity.firebaseUid);
+    // Read-only for known users: requireAuth already loaded the role, so the row exists. Claims are refreshed
+    // on POST /users/firebase/session; only a missing row is created here (first call without a session sync).
+    let role = req.userRole;
+    if (!role) {
+      const sync = await userService.upsertUserFromIdentity(identity);
+      metrics.recordUserSynced(sync.created);
+      role = await userService.getRoleByFirebaseUid(identity.firebaseUid);
+    }
 
     const stats = await userService.getMyStats(identity.firebaseUid, 5);
     return reply.send({

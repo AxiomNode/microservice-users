@@ -46,6 +46,8 @@ const ConfigSchema = z
     FIREBASE_PRIVATE_KEY: OptionalEnvString,
     FIREBASE_CREDENTIALS_JSON: OptionalEnvString,
     FIREBASE_STRICT_AUTH: EnvBoolean.default(true),
+    AUTH_TOKEN_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).max(600).default(60),
+    AUTH_TOKEN_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(100000).default(1000),
     SUPERADMIN_FIREBASE_UID: OptionalEnvString,
     INSPECTOR_EMAILS: OptionalEnvString,
     PRIVATE_DOCS_ENABLED: EnvBoolean.default(true),
@@ -112,11 +114,16 @@ const ConfigSchema = z
     }
   });
 
-/** Typed configuration object inferred from the environment schema. */
-export type AppConfig = Omit<z.infer<typeof ConfigSchema>, "TRUST_PROXY" | "RATE_LIMIT_MAX" | "RATE_LIMIT_WINDOW_MS"> & {
+/** Parsed config; optional keys may be omitted by callers/tests (defaults apply). */
+export type AppConfig = Omit<
+  z.infer<typeof ConfigSchema>,
+  "TRUST_PROXY" | "RATE_LIMIT_MAX" | "RATE_LIMIT_WINDOW_MS" | "AUTH_TOKEN_CACHE_TTL_SECONDS" | "AUTH_TOKEN_CACHE_MAX_ENTRIES"
+> & {
   TRUST_PROXY?: string;
   RATE_LIMIT_MAX?: number;
   RATE_LIMIT_WINDOW_MS?: number;
+  AUTH_TOKEN_CACHE_TTL_SECONDS?: number;
+  AUTH_TOKEN_CACHE_MAX_ENTRIES?: number;
 };
 
 /** Parses and validates environment variables into an AppConfig. Throws on invalid config. */

@@ -15,7 +15,7 @@ Identity/session and gameplay analytics microservice with leaderboard/monitoring
 
 ## CI/CD notes
 - Push to main dispatches platform-infra build-push with service=microservice-users.
-- Platform-infra handles rollout to dev.
+- Platform-infra builds and publishes the image to GHCR; the automatic staging rollout is currently disabled.
 
 ## LLM editing rules
 - Keep strict vs dev auth modes explicit.

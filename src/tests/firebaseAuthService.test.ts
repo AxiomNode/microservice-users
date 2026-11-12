@@ -136,6 +136,124 @@ describe("FirebaseAuthService", () => {
     });
   });
 
+  describe("verified token cache", () => {
+    const decoded = (exp?: number) => ({
+      uid: "firebase-uid",
+      email: "user@test.dev",
+      email_verified: true,
+      exp,
+      firebase: { sign_in_provider: "password" },
+    });
+    const nowSeconds = () => Math.floor(Date.now() / 1000);
+
+    it("verifies a repeated token once within the TTL and keys the cache by token", async () => {
+      const { FirebaseAuthService } = await import("../app/services/firebaseAuthService.js");
+      verifyIdTokenMock.mockResolvedValue(decoded(nowSeconds() + 3600));
+      const service = new FirebaseAuthService(baseConfig({ AUTH_TOKEN_CACHE_TTL_SECONDS: 60 }));
+
+      await service.authenticateFromBearer("Bearer token-a");
+      await service.authenticateFromBearer("Bearer token-a");
+      expect(verifyIdTokenMock).toHaveBeenCalledTimes(1);
+
+      await service.authenticateFromBearer("Bearer token-b");
+      expect(verifyIdTokenMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not cache when the TTL is 0", async () => {
+      const { FirebaseAuthService } = await import("../app/services/firebaseAuthService.js");
+      verifyIdTokenMock.mockResolvedValue(decoded(nowSeconds() + 3600));
+      const service = new FirebaseAuthService(baseConfig({ AUTH_TOKEN_CACHE_TTL_SECONDS: 0 }));
+
+      await service.authenticateFromBearer("Bearer token-a");
+      await service.authenticateFromBearer("Bearer token-a");
+      expect(verifyIdTokenMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("never caches past the token expiry and re-verifies after the TTL elapses", async () => {
+      vi.useFakeTimers();
+      try {
+        const { FirebaseAuthService } = await import("../app/services/firebaseAuthService.js");
+        const service = new FirebaseAuthService(baseConfig({ AUTH_TOKEN_CACHE_TTL_SECONDS: 60 }));
+
+        // Token that expires in 10 s: cached for 10 s, not 60 s.
+        verifyIdTokenMock.mockResolvedValue(decoded(nowSeconds() + 10));
+        await service.authenticateFromBearer("Bearer short");
+        vi.advanceTimersByTime(9_000);
+        await service.authenticateFromBearer("Bearer short");
+        expect(verifyIdTokenMock).toHaveBeenCalledTimes(1);
+        vi.advanceTimersByTime(2_000);
+        await service.authenticateFromBearer("Bearer short");
+        expect(verifyIdTokenMock).toHaveBeenCalledTimes(2);
+
+        // Long-lived token: cached for the TTL only.
+        verifyIdTokenMock.mockResolvedValue(decoded(nowSeconds() + 3600));
+        await service.authenticateFromBearer("Bearer long");
+        vi.advanceTimersByTime(59_000);
+        await service.authenticateFromBearer("Bearer long");
+        expect(verifyIdTokenMock).toHaveBeenCalledTimes(3);
+        vi.advanceTimersByTime(2_000);
+        await service.authenticateFromBearer("Bearer long");
+        expect(verifyIdTokenMock).toHaveBeenCalledTimes(4);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("does not cache an already expired token or a failed verification", async () => {
+      const { FirebaseAuthService } = await import("../app/services/firebaseAuthService.js");
+      const service = new FirebaseAuthService(baseConfig());
+
+      verifyIdTokenMock.mockResolvedValue(decoded(nowSeconds() - 5));
+      await service.authenticateFromBearer("Bearer expired");
+      await service.authenticateFromBearer("Bearer expired");
+      expect(verifyIdTokenMock).toHaveBeenCalledTimes(2);
+
+      verifyIdTokenMock.mockReset();
+      verifyIdTokenMock.mockRejectedValue(new Error("revoked"));
+      await expect(service.authenticateFromBearer("Bearer revoked")).rejects.toThrow("revoked");
+      await expect(service.authenticateFromBearer("Bearer revoked")).rejects.toThrow("revoked");
+      expect(verifyIdTokenMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("stays bounded: evicts expired entries first, then the oldest", async () => {
+      vi.useFakeTimers();
+      try {
+        const { FirebaseAuthService } = await import("../app/services/firebaseAuthService.js");
+        verifyIdTokenMock.mockResolvedValue(decoded(nowSeconds() + 3600));
+        const service = new FirebaseAuthService(
+          baseConfig({ AUTH_TOKEN_CACHE_TTL_SECONDS: 60, AUTH_TOKEN_CACHE_MAX_ENTRIES: 2 })
+        );
+
+        await service.authenticateFromBearer("Bearer t1");
+        vi.advanceTimersByTime(61_000); // t1 expires
+        await service.authenticateFromBearer("Bearer t2");
+        await service.authenticateFromBearer("Bearer t3"); // full: sweeps expired t1 first
+        expect((service as unknown as { tokenCache: Map<string, unknown> }).tokenCache.size).toBe(2);
+
+        await service.authenticateFromBearer("Bearer t4"); // full of live entries: drops oldest (t2)
+        expect((service as unknown as { tokenCache: Map<string, unknown> }).tokenCache.size).toBe(2);
+        verifyIdTokenMock.mockClear();
+        await service.authenticateFromBearer("Bearer t3");
+        await service.authenticateFromBearer("Bearer t4");
+        expect(verifyIdTokenMock).not.toHaveBeenCalled();
+        await service.authenticateFromBearer("Bearer t2");
+        expect(verifyIdTokenMock).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("caches tokens without an exp claim for the TTL", async () => {
+      const { FirebaseAuthService } = await import("../app/services/firebaseAuthService.js");
+      verifyIdTokenMock.mockResolvedValue(decoded(undefined));
+      const service = new FirebaseAuthService(baseConfig());
+
+      await service.authenticateFromBearer("Bearer no-exp");
+      await service.authenticateFromBearer("Bearer no-exp");
+      expect(verifyIdTokenMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("supports dev uid fallback when strict auth is disabled and no token is present", async () => {
     const { FirebaseAuthService } = await import("../app/services/firebaseAuthService.js");
 

@@ -158,6 +158,23 @@ describe("loadConfig boolean parsing", () => {
     withEnv({ ...base, PRIVATE_DOCS_ENABLED: "maybe", FIREBASE_STRICT_AUTH: "false" });
     expect(() => loadConfig()).toThrow("Invalid environment configuration");
   });
+
+  it("defaults the verified-token cache to 60 s / 1000 entries and validates overrides", () => {
+    const base = {
+      DATABASE_URL: "postgresql://users:users@localhost:7434/usersdb?schema=public",
+      FIREBASE_STRICT_AUTH: "false",
+      PRIVATE_DOCS_ENABLED: "false",
+    };
+
+    withEnv(base);
+    expect(loadConfig()).toMatchObject({ AUTH_TOKEN_CACHE_TTL_SECONDS: 60, AUTH_TOKEN_CACHE_MAX_ENTRIES: 1000 });
+
+    withEnv({ ...base, AUTH_TOKEN_CACHE_TTL_SECONDS: "0", AUTH_TOKEN_CACHE_MAX_ENTRIES: "50" });
+    expect(loadConfig()).toMatchObject({ AUTH_TOKEN_CACHE_TTL_SECONDS: 0, AUTH_TOKEN_CACHE_MAX_ENTRIES: 50 });
+
+    withEnv({ ...base, AUTH_TOKEN_CACHE_TTL_SECONDS: "601" });
+    expect(() => loadConfig()).toThrow("Invalid environment configuration for microservice-users");
+  });
 });
 
 describe("loadConfig proxy and rate limit settings", () => {

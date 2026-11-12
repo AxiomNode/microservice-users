@@ -50,6 +50,10 @@ This service owns health, monitor, player profile, gameplay-event, and leaderboa
 
 `POST /users/me/games/events/batch` ingests up to 500 events per call for the mobile offline queue. Each event carries `gameId` and `timestamp`; a deterministic `eventKey` (stored in `UserGameEvent.eventKey`, unique) makes replays idempotent, so only new events update the profile and per-type/category/language aggregates. The response is `{ synced, duplicates, message }`. Deploying this change adds a nullable unique column through `prisma db push` (no data rewrite).
 
+### Authentication cost and revocation trade-off
+
+Verified Firebase ID tokens are cached in memory, keyed by the SHA-256 of the token, for `AUTH_TOKEN_CACHE_TTL_SECONDS` (default 60, `0` disables) and never past the token's own expiry; the cache holds at most `AUTH_TOKEN_CACHE_MAX_ENTRIES` entries (default 1000, oldest evicted first). Verification still checks revocation, but only on a cache miss, so a token revoked in Firebase can stay accepted for up to the TTL. `GET /users/me/profile` is read-only for existing users; the profile row is created by `POST /users/firebase/session` (or by this GET only when the row is missing), and identity claims plus `lastLoginAt` are refreshed on the session call.
+
 ## Dependencies and contracts
 
 ### Dependency model

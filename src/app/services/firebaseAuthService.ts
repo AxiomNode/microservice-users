@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { App, cert, getApps, initializeApp } from "firebase-admin/app";
 import { DecodedIdToken, getAuth } from "firebase-admin/auth";
 
@@ -22,6 +24,9 @@ export interface FirebaseIdentity {
 export class FirebaseAuthService {
   private firebaseApp: App | null = null;
 
+  /** Verified identities keyed by SHA-256 of the token (raw tokens are never stored). */
+  private readonly tokenCache = new Map<string, { identity: FirebaseIdentity; expiresAt: number }>();
+
   constructor(private readonly config: AppConfig) {
     this.firebaseApp = this.initFirebaseApp();
   }
@@ -44,11 +49,62 @@ export class FirebaseAuthService {
     }
 
     if (this.firebaseApp) {
+      const cacheKey = createHash("sha256").update(token).digest("hex");
+      const cached = this.readCache(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const decoded = await getAuth(this.firebaseApp).verifyIdToken(token, true);
-      return this.mapDecodedToken(decoded);
+      const identity = this.mapDecodedToken(decoded);
+      this.writeCache(cacheKey, identity, decoded.exp);
+      return identity;
     }
 
     throw new Error("Firebase auth is not configured");
+  }
+
+  private readCache(key: string): FirebaseIdentity | null {
+    const entry = this.tokenCache.get(key);
+    if (!entry) {
+      return null;
+    }
+    if (entry.expiresAt <= Date.now()) {
+      this.tokenCache.delete(key);
+      return null;
+    }
+    return entry.identity;
+  }
+
+  /** Stores a verified identity for at most the configured TTL and never past the token expiry. */
+  private writeCache(key: string, identity: FirebaseIdentity, expSeconds: number | undefined): void {
+    const ttlMs = (this.config.AUTH_TOKEN_CACHE_TTL_SECONDS ?? 60) * 1000;
+    if (ttlMs <= 0) {
+      return;
+    }
+
+    const now = Date.now();
+    const tokenExpiryMs = typeof expSeconds === "number" ? expSeconds * 1000 : Number.POSITIVE_INFINITY;
+    const expiresAt = Math.min(now + ttlMs, tokenExpiryMs);
+    if (expiresAt <= now) {
+      return;
+    }
+
+    const maxEntries = this.config.AUTH_TOKEN_CACHE_MAX_ENTRIES ?? 1000;
+    if (this.tokenCache.size >= maxEntries) {
+      for (const [entryKey, entry] of this.tokenCache) {
+        if (entry.expiresAt <= now) {
+          this.tokenCache.delete(entryKey);
+        }
+      }
+      // Map iterates in insertion order, so the first key is the oldest entry.
+      while (this.tokenCache.size >= maxEntries) {
+        const oldest = this.tokenCache.keys().next().value as string;
+        this.tokenCache.delete(oldest);
+      }
+    }
+
+    this.tokenCache.set(key, { identity, expiresAt });
   }
 
   private initFirebaseApp(): App | null {

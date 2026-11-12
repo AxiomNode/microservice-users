@@ -1,0 +1,27 @@
+# BuildKit reads "<Dockerfile name>.dockerignore" next to the Dockerfile.
+# Patterns are relative to the build context, which is the workspace root that
+# holds several sibling clones (compose: "context: .."; CI: the "source" dir).
+# A <context>/.dockerignore would not be versioned in this repository.
+
+# Send only what the Dockerfile copies.
+*
+!shared-sdk-client/typescript
+!microservice-users/src
+
+# Never send these, wherever they are.
+**/.git
+**/.github
+**/node_modules
+**/dist
+**/coverage
+**/.env
+**/.env.*
+!**/.env.example
+**/.env.secrets
+**/*.secrets.env
+**/*service-account*.json
+**/tests
+**/docs
+**/*.md
+**/.vscode
+**/.idea

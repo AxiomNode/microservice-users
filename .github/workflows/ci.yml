@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - develop
   pull_request:
   workflow_dispatch:
 
@@ -14,6 +13,12 @@ on:
 permissions:
   contents: read
 
+# Supersede in-flight runs of the same ref; only for pull requests so a push to
+# main is never cancelled half-way (it may dispatch the image build).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -21,6 +26,7 @@ jobs:
   build-test-lint-audit:
     name: Build, Test, Lint, Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: microservice-users/src
@@ -58,7 +64,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: microservice-users/src/package-lock.json
 
@@ -94,6 +100,7 @@ jobs:
   trigger-platform-infra-build:
     name: Trigger Platform Infra Build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs:
       - build-test-lint-audit
       - docker-smoke-private-docs
@@ -192,6 +199,7 @@ jobs:
   docker-smoke-private-docs:
     name: Docker Smoke + Private Docs
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs:
       - build-test-lint-audit
     steps:

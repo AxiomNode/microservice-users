@@ -104,13 +104,13 @@ Role assignment notes:
 
 ### Delivery and deployment behavior
 
-- This service is part of the automatic staging deployment chain.
+- This service is part of the CI-gated image build chain: images are published to GHCR and nothing deploys them automatically.
 - A push to `main` only dispatches `platform-infra` after the repository validation and Docker smoke checks succeed.
-- Automatic deployment target is `stg`, not `dev`.
+- There is no automatic deployment target today: the automatic staging rollout is currently disabled (its target host no longer exists).
 
 ### CI/CD and rollout note
 
-CI, smoke checks, and staging rollout behavior are documented in `docs/operations/README.md` and `../docs/operations/cicd-workflow-map.md`.
+CI, smoke checks, and image publishing are documented in `docs/operations/README.md` and `../docs/operations/cicd-workflow-map.md`.
 
 ### Failure boundaries
 

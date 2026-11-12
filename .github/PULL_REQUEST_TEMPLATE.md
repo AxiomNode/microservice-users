@@ -11,7 +11,7 @@
 - [ ] Automated tests are green
 - [ ] Coverage remains at or above the enforced repository threshold
 - [ ] Required CI workflows remain blocking, not advisory
-- [ ] A green `main` update still continues automatically to `stg`
+- [ ] A green `main` update still dispatches the `platform-infra` image build (nothing deploys automatically)
 - [ ] Cross-repository contract, SDK, routing, or deployment implications are documented when affected
 
 ## Notes

@@ -46,6 +46,10 @@ Cross-repo player identity behavior and mobile/backoffice consumption are docume
 
 This service owns health, monitor, player profile, gameplay-event, and leaderboard routes. Use the local docs and the player capability dossier for the concrete contract inventory.
 
+### Batch game events
+
+`POST /users/me/games/events/batch` ingests up to 500 events per call for the mobile offline queue. Each event carries `gameId` and `timestamp`; a deterministic `eventKey` (stored in `UserGameEvent.eventKey`, unique) makes replays idempotent, so only new events update the profile and per-type/category/language aggregates. The response is `{ synced, duplicates, message }`. Deploying this change adds a nullable unique column through `prisma db push` (no data rewrite).
+
 ## Dependencies and contracts
 
 ### Dependency model

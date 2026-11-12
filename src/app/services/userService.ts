@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { GameOutcome, Prisma, UserRole } from "@prisma/client";
 
 import { AppConfig } from "../config.js";
@@ -28,6 +30,46 @@ export interface RecordGameEventInput {
   score?: number;
   durationSeconds?: number;
   metadata?: Record<string, unknown>;
+}
+
+/** Input payload for one event of an idempotent batch sync (mobile offline queue). */
+export interface BatchGameEventInput {
+  gameId: string;
+  gameType: string;
+  categoryId?: string;
+  categoryName?: string;
+  language: string;
+  outcome: "won" | "lost" | "draw";
+  score?: number;
+  durationSeconds?: number;
+  /** Epoch milliseconds at which the game was played. */
+  timestamp: number;
+}
+
+/** Result of a batch sync: `synced` events were new, `duplicates` were already stored. */
+export interface BatchGameEventsResult {
+  synced: number;
+  duplicates: number;
+  /** The events counted as new (used for metrics). */
+  accepted: BatchGameEventInput[];
+}
+
+interface StatBucket {
+  played: number;
+  won: number;
+  lost: number;
+  draw: number;
+}
+
+function emptyBucket(): StatBucket {
+  return { played: 0, won: 0, lost: 0, draw: 0 };
+}
+
+function addToBucket(bucket: StatBucket, outcome: GameOutcome): void {
+  bucket.played += 1;
+  if (outcome === "won") bucket.won += 1;
+  else if (outcome === "lost") bucket.lost += 1;
+  else bucket.draw += 1;
 }
 
 /** Complete stats snapshot returned by getMyStats. */
@@ -330,6 +372,230 @@ export class UserService {
     }, {
       isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted
     });
+  }
+
+  /**
+   * Records a batch of game events idempotently. Each event gets a deterministic key, so replaying the same
+   * batch (offline queue retries) never double counts: only newly inserted events touch the aggregates.
+   */
+  async recordGameEvents(
+    firebaseUid: string,
+    inputs: BatchGameEventInput[],
+  ): Promise<BatchGameEventsResult> {
+    const user = await prisma.userProfile.findUnique({
+      where: { firebaseUid },
+      select: { id: true, role: true }
+    });
+
+    if (!user) {
+      throw new Error("User not found. Sync Firebase session first.");
+    }
+
+    if (READ_ONLY_ROLES.has(user.role)) {
+      throw new AccessDeniedError("Read-only roles cannot modify data.");
+    }
+
+    const byKey = new Map<string, BatchGameEventInput>();
+    for (const input of inputs) {
+      const key = createHash("sha256")
+        .update(`${firebaseUid}|${input.gameId}|${input.gameType}|${input.timestamp}|${input.outcome}|${input.score ?? 0}`)
+        .digest("hex");
+      if (!byKey.has(key)) {
+        byKey.set(key, input);
+      }
+    }
+
+    const keys = [...byKey.keys()];
+    const known = await prisma.userGameEvent.findMany({
+      where: { eventKey: { in: keys } },
+      select: { eventKey: true }
+    });
+    const knownKeys = new Set(known.map((row) => row.eventKey));
+    const fresh = keys.filter((key) => !knownKeys.has(key));
+
+    if (fresh.length === 0) {
+      return { synced: 0, duplicates: inputs.length, accepted: [] };
+    }
+
+    const inserted = await prisma.$transaction(async (tx) => {
+      // skipDuplicates + createManyAndReturn: concurrent replays of the same batch only count once.
+      const rows = await tx.userGameEvent.createManyAndReturn({
+        data: fresh.map((key) => {
+          const input = byKey.get(key) as BatchGameEventInput;
+          return {
+            userId: user.id,
+            gameType: input.gameType,
+            categoryId: input.categoryId,
+            categoryName: input.categoryName,
+            language: input.language.toLowerCase(),
+            outcome: input.outcome as GameOutcome,
+            score: input.score ?? 0,
+            durationSeconds: input.durationSeconds ?? 0,
+            metadataJson: JSON.stringify({ gameId: input.gameId }),
+            eventKey: key,
+            playedAt: new Date(input.timestamp)
+          };
+        }),
+        skipDuplicates: true,
+        select: {
+          gameType: true,
+          categoryId: true,
+          categoryName: true,
+          language: true,
+          outcome: true,
+          score: true,
+          durationSeconds: true
+        }
+      });
+
+      if (rows.length === 0) {
+        return 0;
+      }
+
+      const total = emptyBucket();
+      let totalScore = 0;
+      let totalDuration = 0;
+      let bestScore = 0;
+      const types = new Map<string, StatBucket & { totalScore: number; bestScore: number }>();
+      const categories = new Map<string, StatBucket & { gameType: string; categoryId: string; categoryName: string | null }>();
+      const languages = new Map<string, StatBucket & { gameType: string; language: string }>();
+
+      for (const row of rows) {
+        addToBucket(total, row.outcome);
+        totalScore += row.score;
+        totalDuration += row.durationSeconds;
+        bestScore = Math.max(bestScore, row.score);
+
+        const type = types.get(row.gameType) ?? { ...emptyBucket(), totalScore: 0, bestScore: 0 };
+        addToBucket(type, row.outcome);
+        type.totalScore += row.score;
+        type.bestScore = Math.max(type.bestScore, row.score);
+        types.set(row.gameType, type);
+
+        if (row.categoryId) {
+          const categoryKey = `${row.gameType}|${row.categoryId}`;
+          const category = categories.get(categoryKey) ?? {
+            ...emptyBucket(),
+            gameType: row.gameType,
+            categoryId: row.categoryId,
+            categoryName: row.categoryName
+          };
+          addToBucket(category, row.outcome);
+          category.categoryName = row.categoryName ?? category.categoryName;
+          categories.set(categoryKey, category);
+        }
+
+        const languageKey = `${row.gameType}|${row.language}`;
+        const language = languages.get(languageKey) ?? { ...emptyBucket(), gameType: row.gameType, language: row.language };
+        addToBucket(language, row.outcome);
+        languages.set(languageKey, language);
+      }
+
+      await tx.userProfile.update({
+        where: { id: user.id },
+        data: {
+          gamesPlayed: { increment: total.played },
+          gamesWon: { increment: total.won },
+          gamesLost: { increment: total.lost },
+          gamesDraw: { increment: total.draw },
+          totalScore: { increment: totalScore },
+          totalDurationSeconds: { increment: totalDuration }
+        }
+      });
+
+      await tx.$executeRaw`
+        UPDATE "UserProfile"
+        SET "bestScore" = GREATEST("bestScore", ${bestScore})
+        WHERE id = ${user.id}
+      `;
+
+      for (const [gameType, stat] of types) {
+        await tx.userGameTypeStat.upsert({
+          where: { userId_gameType: { userId: user.id, gameType } },
+          create: {
+            userId: user.id,
+            gameType,
+            played: stat.played,
+            won: stat.won,
+            lost: stat.lost,
+            draw: stat.draw,
+            totalScore: stat.totalScore,
+            bestScore: stat.bestScore
+          },
+          update: {
+            played: { increment: stat.played },
+            won: { increment: stat.won },
+            lost: { increment: stat.lost },
+            draw: { increment: stat.draw },
+            totalScore: { increment: stat.totalScore }
+          }
+        });
+
+        await tx.$executeRaw`
+          UPDATE "UserGameTypeStat"
+          SET "bestScore" = GREATEST("bestScore", ${stat.bestScore})
+          WHERE "userId" = ${user.id} AND "gameType" = ${gameType}
+        `;
+      }
+
+      for (const stat of categories.values()) {
+        await tx.userCategoryStat.upsert({
+          where: {
+            userId_gameType_categoryId: { userId: user.id, gameType: stat.gameType, categoryId: stat.categoryId }
+          },
+          create: {
+            userId: user.id,
+            gameType: stat.gameType,
+            categoryId: stat.categoryId,
+            categoryName: stat.categoryName,
+            played: stat.played,
+            won: stat.won,
+            lost: stat.lost,
+            draw: stat.draw
+          },
+          update: {
+            categoryName: stat.categoryName,
+            played: { increment: stat.played },
+            won: { increment: stat.won },
+            lost: { increment: stat.lost },
+            draw: { increment: stat.draw }
+          }
+        });
+      }
+
+      for (const stat of languages.values()) {
+        await tx.userLanguageStat.upsert({
+          where: {
+            userId_gameType_language: { userId: user.id, gameType: stat.gameType, language: stat.language }
+          },
+          create: {
+            userId: user.id,
+            gameType: stat.gameType,
+            language: stat.language,
+            played: stat.played,
+            won: stat.won,
+            lost: stat.lost,
+            draw: stat.draw
+          },
+          update: {
+            played: { increment: stat.played },
+            won: { increment: stat.won },
+            lost: { increment: stat.lost },
+            draw: { increment: stat.draw }
+          }
+        });
+      }
+
+      return rows.length;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted
+    });
+
+    return {
+      synced: inserted,
+      duplicates: inputs.length - inserted,
+      accepted: inserted > 0 ? fresh.map((key) => byKey.get(key) as BatchGameEventInput) : []
+    };
   }
 
   async getMyStats(firebaseUid: string, recentLimit: number): Promise<UserStatsSnapshot> {

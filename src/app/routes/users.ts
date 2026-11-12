@@ -44,6 +44,21 @@ const GameEventSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
+/** Idempotent batch used by the mobile offline queue: each event carries the client game id and timestamp. */
+const GameEventsBatchSchema = z.object({
+  events: z.array(z.object({
+    gameId: z.string().min(1),
+    gameType: z.string().min(1),
+    categoryId: z.string().min(1).optional(),
+    categoryName: z.string().min(1).optional(),
+    language: z.string().min(2).max(10),
+    outcome: z.enum(["won", "lost", "draw"]),
+    score: z.number().int().min(0).max(1_000_000).optional(),
+    durationSeconds: z.number().int().min(0).max(86400).optional(),
+    timestamp: z.number().int().positive(),
+  })).min(1).max(500),
+});
+
 const StatsQuerySchema = z.object({
   recentLimit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -235,6 +250,47 @@ export async function usersRoutes(
     });
 
     return reply.status(201).send({ message: "Game event stored" });
+  });
+
+  app.post("/users/me/games/events/batch", { preHandler: requireAuth }, async (request, reply) => {
+    const req = request as AuthenticatedRequest;
+    const identity = req.userIdentity;
+    /* v8 ignore next -- requireAuth either populates identity or already returns 401 */
+    if (!identity) {
+      return reply.status(401).send({ message: "Unauthorized" });
+    }
+
+    const parsed = GameEventsBatchSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({
+        message: "Invalid payload",
+        errors: parsed.error.flatten(),
+      });
+    }
+
+    let result;
+    try {
+      result = await userService.recordGameEvents(identity.firebaseUid, parsed.data.events);
+    } catch (error) {
+      if (error instanceof AccessDeniedError) {
+        return reply.status(403).send({ message: error.message });
+      }
+      throw error;
+    }
+
+    for (const event of result.accepted) {
+      metrics.recordGameEventStored({
+        gameType: event.gameType,
+        language: event.language.toLowerCase(),
+        outcome: event.outcome,
+      });
+    }
+
+    return reply.send({
+      synced: result.synced,
+      duplicates: result.duplicates,
+      message: `Synced ${result.synced} game event(s)`,
+    });
   });
 
   app.get("/users/admin/roles", { preHandler: requireAuth }, async (request, reply) => {

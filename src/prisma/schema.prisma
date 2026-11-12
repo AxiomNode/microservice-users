@@ -55,6 +55,8 @@ model UserGameEvent {
   score           Int         @default(0)
   durationSeconds Int         @default(0)
   metadataJson    String?
+  /// Idempotency key (hash of user, game id, type, timestamp, outcome and score) set by batch syncs; null for single events
+  eventKey        String?     @unique
   playedAt        DateTime    @default(now())
   /// Parent user profile
   user            UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
